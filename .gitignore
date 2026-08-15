@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Saidas geradas em runtime (logs e evidencias nao vao para o repositorio;
+# os CSVs de exemplo SIM sao versionados - ver observacao no README).
+logs/*.log
+evidencias/*.png
+evidencias/*.txt
+
+# IDE
+.vscode/
+.idea/

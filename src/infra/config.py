@@ -1,0 +1,94 @@
+"""
+Configuração central do projeto.
+
+Toda a parametrização do robô fica concentrada aqui: caminhos de pastas,
+timeouts, política de retry, headers, moedas monitoradas e endpoints.
+
+Regra de negócio: nenhum valor "mágico" deve ficar espalhado no meio da
+lógica. Quem sustenta o robô ajusta o comportamento neste único arquivo,
+sem precisar entender ou tocar no código dos coletores.
+"""
+
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Caminhos base do projeto.
+# Tudo é derivado da raiz do projeto (dois níveis acima deste arquivo:
+# .../src/infra/config.py -> raiz), para o robô funcionar independente de
+# onde a máquina o executa (ambiente de produção limpo).
+# ---------------------------------------------------------------------------
+RAIZ_PROJETO = Path(__file__).resolve().parent.parent.parent
+
+PASTA_LOGS = RAIZ_PROJETO / "logs"
+PASTA_EVIDENCIAS = RAIZ_PROJETO / "evidencias"
+PASTA_SAIDA_CSV = RAIZ_PROJETO / "saida_csv"
+
+# Pastas que o robô garante existir no arranque. Se não existirem, cria;
+# se existirem, mantém. (ver infra/ambiente.py)
+PASTAS_OBRIGATORIAS = [PASTA_LOGS, PASTA_EVIDENCIAS, PASTA_SAIDA_CSV]
+
+# ---------------------------------------------------------------------------
+# Nomes dos arquivos de log (os três níveis).
+# ---------------------------------------------------------------------------
+ARQUIVO_LOG_PROCESSO = "LogProcesso.log"      # trilha completa do que o robô fez
+ARQUIVO_LOG_ERRO = "LogErro.log"              # erros de negócio esperados/tratados
+ARQUIVO_LOG_EXCECAO = "LogException.log"      # exceções inesperadas (não previstas)
+
+# ---------------------------------------------------------------------------
+# Política de resiliência.
+# Falhas transitórias (rede lenta, site fora do ar por 1s, API com limite
+# momentâneo) são comuns em scraping/API. Em vez de morrer na 1ª tentativa,
+# o robô tenta de novo com espera crescente entre as tentativas.
+# ---------------------------------------------------------------------------
+MAX_TENTATIVAS = 3            # nº de tentativas antes de desistir
+ESPERA_BASE_SEGUNDOS = 2      # espera inicial; cresce a cada tentativa (backoff)
+
+# ---------------------------------------------------------------------------
+# Configuração do Selenium (scraping).
+# ---------------------------------------------------------------------------
+# headless=True roda sem abrir janela (produção). Deixe False para depurar
+# visualmente vendo o navegador agir.
+SELENIUM_HEADLESS = False
+SELENIUM_TIMEOUT = 20         # segundos que o robô espera um elemento aparecer
+
+# User-agent realista reduz bloqueio anti-bot: muitos sites barram o
+# user-agent padrão do automator.
+SELENIUM_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+# ---------------------------------------------------------------------------
+# Configuração da API pública de câmbio (API PTAX oficial do Banco Central).
+# Recurso CotacaoMoedaPeriodo: retorna compra e venda por data num período.
+# Gratuita, sem necessidade de chave.
+# ---------------------------------------------------------------------------
+API_TIMEOUT = 20
+API_URL_BASE = (
+    "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/"
+    "CotacaoMoedaPeriodo"
+)
+
+# Boletim que interessa: o site do BCB exibe o FECHAMENTO. A API retorna
+# cinco boletins por dia (abertura, 3 intermediários, fechamento); filtramos
+# só o de fechamento para casar com o scraping.
+API_TIPO_BOLETIM_FECHAMENTO = "Fechamento"
+
+# ---------------------------------------------------------------------------
+# Moedas monitoradas (contra o Real), pelos códigos usados pelo BCB.
+# Os dois coletores (scraping e API) usam o mesmo conjunto, para os CSVs
+# finais serem comparáveis.
+# ---------------------------------------------------------------------------
+MOEDAS = ["USD", "EUR", "GBP"]
+
+# Rótulo legível de cada moeda no site do BCB (usado no dropdown do scraping).
+MOEDA_LABEL_SITE = {
+    "USD": "DOLAR DOS EUA",
+    "EUR": "EURO",
+    "GBP": "LIBRA ESTERLINA",
+}
+
+# URL da página de histórico de cotações do site do BCB (scraping).
+SITE_BCB_URL = (
+    "https://www.bcb.gov.br/estabilidadefinanceira/historicocotacoes"
+)

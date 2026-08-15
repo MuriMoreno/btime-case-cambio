@@ -1,0 +1,10 @@
+# Dependencias do projeto btime-case-cambio
+# Instale com:  pip install -r requirements.txt
+
+# Web scraping (Selenium 4.6+ ja traz o Selenium Manager embutido, que
+# resolve o driver do Chrome automaticamente - nao e preciso baixar
+# chromedriver manualmente).
+selenium>=4.15.0
+
+# Requisicoes HTTP para a API PTAX do Banco Central.
+requests>=2.31.0
