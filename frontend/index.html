@@ -122,14 +122,17 @@
     <section id="view-consulta" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
       <div>
         <h1 class="bt-h1">Consulta livre</h1>
-        <p class="bt-body">Busque qualquer moeda e período direto na PTAX do Banco Central, sem precisar cadastrar um item.</p>
+        <p class="bt-body">Escolha uma moeda já cadastrada e um período pra consultar direto na PTAX do Banco Central.</p>
       </div>
 
       <form id="form-consulta" class="bt-card" novalidate>
         <div class="app-form-grid">
           <div class="bt-field">
             <label class="bt-field__label" data-required for="consulta-moeda">Moeda</label>
-            <input class="bt-input" id="consulta-moeda" name="moeda" maxlength="3" placeholder="EUR" required>
+            <select class="bt-select" id="consulta-moeda" name="moeda" required>
+              <option value="" disabled selected>Selecione a moeda</option>
+            </select>
+            <span class="bt-field__hint" id="consulta-moeda-hint"></span>
           </div>
           <div class="bt-field">
             <label class="bt-field__label" data-required for="consulta-inicio">Data início</label>

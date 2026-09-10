@@ -121,6 +121,7 @@ function router() {
     carregarDetalheItem(id);
   } else if (hash === "#/consulta") {
     document.getElementById("view-consulta").classList.remove("app-hidden");
+    carregarMoedasConsultaSelect();
   } else {
     document.getElementById("view-items").classList.remove("app-hidden");
     carregarListaItens();
@@ -453,6 +454,49 @@ async function aoClicarColetar() {
 /* ==========================================================================
    View: consulta livre
    ========================================================================== */
+
+async function carregarMoedasConsultaSelect() {
+  const select = document.getElementById("consulta-moeda");
+  const dica = document.getElementById("consulta-moeda-hint");
+
+  select.disabled = true;
+  select.innerHTML = '<option value="" disabled selected>Carregando…</option>';
+  dica.textContent = "";
+
+  let itens;
+  try {
+    itens = await api.listarItens();
+    itemsCache = itens; // mantém o cache das outras views atualizado também
+  } catch (erro) {
+    select.innerHTML = '<option value="" disabled selected>Não foi possível carregar as moedas</option>';
+    dica.textContent = erro.message;
+    return;
+  }
+
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.disabled = true;
+  placeholder.selected = true;
+
+  if (itens.length === 0) {
+    placeholder.textContent = "Nenhuma moeda cadastrada ainda";
+    select.appendChild(placeholder);
+    dica.textContent = "Cadastre um item na tela de Itens para poder consultá-lo aqui.";
+    return;
+  }
+
+  placeholder.textContent = "Selecione a moeda";
+  select.appendChild(placeholder);
+
+  itens.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.moeda;
+    option.textContent = `${item.moeda} — ${item.nome}`;
+    select.appendChild(option);
+  });
+  select.disabled = false;
+}
 
 async function aoSubmeterConsulta(evento) {
   evento.preventDefault();

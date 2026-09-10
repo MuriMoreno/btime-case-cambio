@@ -300,8 +300,10 @@ num único lugar (`frontend/config.js`).
   de cabeça) — sugere o nome do item automaticamente ao escolher a moeda.
 - **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta,
   botão "Coletar agora", e abas Gráfico/Tabela para o histórico.
-- **Consulta livre** (`#/consulta`) — formulário de moeda + período que
-  bate direto no `GET /cotacoes`, sem precisar de item cadastrado.
+- **Consulta livre** (`#/consulta`) — seletor de moeda (só as já
+  cadastradas, vindo de `GET /items`) + período, batendo direto no
+  `GET /cotacoes` ao vivo em vez de só reaproveitar o que o agendador já
+  coletou.
 
 O gráfico de histórico é SVG desenhado à mão (sem biblioteca externa):
 duas séries (compra/venda), crosshair com tooltip no hover, marcador de
