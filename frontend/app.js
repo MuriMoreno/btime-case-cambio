@@ -4,6 +4,17 @@
    Cliente da API
    ========================================================================== */
 
+// Erro de API: guarda o status e o "detail" cru (string ou objeto), pra
+// quem chamou decidir como tratar - por exemplo, o 409 de moeda duplicada
+// vem com um objeto estruturado, não só uma mensagem.
+class ApiError extends Error {
+  constructor(mensagem, status, detalhe) {
+    super(mensagem);
+    this.status = status;
+    this.detalhe = detalhe;
+  }
+}
+
 async function apiRequest(path, options = {}) {
   const resposta = await fetch(`${API_BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -18,8 +29,9 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!resposta.ok) {
-    const detalhe = corpo && corpo.detail ? corpo.detail : `Erro ${resposta.status} ao falar com a API.`;
-    throw new Error(typeof detalhe === "string" ? detalhe : JSON.stringify(detalhe));
+    const detalhe = corpo && corpo.detail !== undefined ? corpo.detail : `Erro ${resposta.status} ao falar com a API.`;
+    const mensagem = typeof detalhe === "string" ? detalhe : (detalhe && detalhe.mensagem) || `Erro ${resposta.status}`;
+    throw new ApiError(mensagem, resposta.status, detalhe);
   }
   return corpo;
 }
@@ -270,11 +282,77 @@ async function aoSubmeterCriacao(evento) {
     fecharModalCriar();
     await carregarListaItens();
   } catch (erro) {
-    renderAlert(alertaBox, erro.message);
+    if (erro.status === 409 && erro.detalhe && typeof erro.detalhe === "object") {
+      renderAvisoMoedaDuplicada(erro.detalhe);
+    } else {
+      renderAlert(alertaBox, erro.message);
+    }
   } finally {
     botao.removeAttribute("aria-busy");
     botao.disabled = false;
   }
+}
+
+function formatarTempoRestante(segundos) {
+  if (segundos === null || segundos === undefined) {
+    return "Não foi possível calcular quando será a próxima coleta automática.";
+  }
+  if (segundos <= 0) {
+    return "A próxima coleta automática deve acontecer a qualquer momento.";
+  }
+  const minutos = Math.floor(segundos / 60);
+  const resto = segundos % 60;
+  if (minutos === 0) return `Faltam ${resto}s para a próxima coleta automática.`;
+  return `Faltam ${minutos} min para a próxima coleta automática.`;
+}
+
+function renderAvisoMoedaDuplicada(detalhe) {
+  const container = document.getElementById("create-alert");
+  container.className = "bt-alert bt-alert--warning";
+  container.innerHTML = "";
+
+  const icone = document.createElement("span");
+  icone.className = "bt-alert__icon";
+  icone.textContent = "ℹ";
+
+  const corpo = document.createElement("div");
+  corpo.style.display = "flex";
+  corpo.style.flexDirection = "column";
+  corpo.style.gap = "var(--bt-space-3)";
+
+  const titulo = document.createElement("p");
+  titulo.className = "bt-alert__title";
+  titulo.textContent = "Moeda já cadastrada";
+
+  const texto = document.createElement("p");
+  texto.className = "bt-alert__body";
+  texto.textContent = `${detalhe.nome} (${detalhe.moeda}) já está sendo monitorada. ${formatarTempoRestante(detalhe.segundos_ate_proxima_coleta)} Quer coletar agora mesmo assim?`;
+
+  const botaoColetar = document.createElement("button");
+  botaoColetar.type = "button";
+  botaoColetar.className = "bt-btn bt-btn--secondary bt-btn--sm";
+  botaoColetar.textContent = "Coletar agora mesmo assim";
+  botaoColetar.addEventListener("click", async () => {
+    botaoColetar.setAttribute("aria-busy", "true");
+    botaoColetar.disabled = true;
+    try {
+      await api.coletarAgora(detalhe.item_id);
+      fecharModalCriar();
+      await carregarListaItens();
+    } catch (erro) {
+      renderAlert(container, erro.message);
+    } finally {
+      botaoColetar.removeAttribute("aria-busy");
+      botaoColetar.disabled = false;
+    }
+  });
+
+  corpo.appendChild(titulo);
+  corpo.appendChild(texto);
+  corpo.appendChild(botaoColetar);
+  container.appendChild(icone);
+  container.appendChild(corpo);
+  container.classList.remove("app-hidden");
 }
 
 /* ==========================================================================

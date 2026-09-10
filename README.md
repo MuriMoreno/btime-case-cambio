@@ -216,11 +216,18 @@ consumida por um frontend depois (hospedado no Lovable).
   chamada tanto para validar que a moeda existe na PTAX quanto para gravar
   a primeira leitura — evita duas idas à API para o mesmo propósito.
 - **Mapeamento de erros:** `404` quando o item não existe; `400` quando o
-  payload é inválido ou (só na criação) a moeda não existe na PTAX; `502`
-  quando a PTAX está fora do ar ou não responde a tempo (a coleta falhou,
-  não o pedido do usuário). Nenhuma exceção do Python chega crua ao
-  cliente — há um handler global que converte qualquer erro não previsto
-  em `500` com mensagem genérica, registrando o detalhe no log.
+  payload é inválido ou (só na criação) a moeda não existe na PTAX; `409`
+  quando a moeda já está cadastrada (ver abaixo); `502` quando a PTAX está
+  fora do ar ou não responde a tempo (a coleta falhou, não o pedido do
+  usuário). Nenhuma exceção do Python chega crua ao cliente — há um
+  handler global que converte qualquer erro não previsto em `500` com
+  mensagem genérica, registrando o detalhe no log.
+- **Um item por moeda.** `POST /items` não cria um segundo item para uma
+  moeda já cadastrada — devolve `409` com o item existente e quantos
+  segundos faltam para a próxima coleta automática
+  (`segundos_ate_proxima_coleta`, calculado a partir do `next_run_time` do
+  job do agendador). O frontend usa isso para avisar o usuário e oferecer
+  "coletar agora mesmo assim" no item já existente, em vez de duplicar.
 - **Consulta livre (`GET /cotacoes`).** Além do agendador e da coleta
   manual por item, dá pra consultar qualquer moeda + período direto na
   PTAX sem precisar cadastrar nada antes — pensado pra uma tela

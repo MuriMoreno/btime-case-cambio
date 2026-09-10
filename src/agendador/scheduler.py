@@ -68,3 +68,14 @@ def parar_agendador():
     if _scheduler.running:
         _scheduler.shutdown(wait=False)
         logger_api.processo("[Agendador] Encerrado.")
+
+
+def proxima_execucao():
+    """
+    Devolve o datetime (timezone-aware) da próxima coleta automática
+    agendada, ou None se o agendador não estiver rodando. Usado pra avisar
+    o usuário quanto tempo falta quando ele tenta cadastrar uma moeda que
+    já existe.
+    """
+    job = _scheduler.get_job("coleta_periodica")
+    return job.next_run_time if job else None

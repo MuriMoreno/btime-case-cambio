@@ -55,6 +55,26 @@ def test_criar_item_moeda_invalida(client, monkeypatch):
     assert resposta.status_code == 400
 
 
+def test_criar_item_moeda_duplicada(client, monkeypatch):
+    _mockar_cotacao(monkeypatch)
+    primeiro = client.post("/items", json={"nome": "Dólar Americano", "moeda": "usd"})
+    assert primeiro.status_code == 201
+    id_existente = primeiro.json()["id"]
+
+    resposta = client.post("/items", json={"nome": "Dólar de novo", "moeda": "usd"})
+
+    assert resposta.status_code == 409
+    detalhe = resposta.json()["detail"]
+    assert detalhe["item_id"] == id_existente
+    assert detalhe["moeda"] == "USD"
+    assert detalhe["nome"] == "Dólar Americano"
+    assert "segundos_ate_proxima_coleta" in detalhe
+
+    # não deve ter criado um segundo item
+    lista = client.get("/items").json()
+    assert len(lista) == 1
+
+
 def test_criar_item_fonte_fora_do_ar(client, monkeypatch):
     def falhar(moeda, logger):
         raise RuntimeError("PTAX indisponivel")

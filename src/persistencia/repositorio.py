@@ -24,6 +24,10 @@ def obter_item(db, item_id):
     return db.query(Item).filter(Item.id == item_id).first()
 
 
+def obter_item_por_moeda(db, moeda):
+    return db.query(Item).filter(Item.moeda == moeda).first()
+
+
 def criar_coleta(db, item_id, data_cotacao, valor_compra, valor_venda):
     coleta = Coleta(
         item_id=item_id,

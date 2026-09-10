@@ -7,7 +7,14 @@ tratados com HTTPException diretamente aqui - não há uma classe de erro de
 domínio + handler genérico para isso, porque cada rota já sabe exatamente
 qual status cada situação merece (ex: moeda vazia é 400 na criação, mas é
 502 numa coleta manual de um item que já existe e é válido).
+
+Regra de unicidade: só existe um item por moeda. Tentar cadastrar uma
+moeda já monitorada não cria um segundo item - devolve 409 com os dados
+do item existente e quanto tempo falta para a próxima coleta automática,
+para o frontend oferecer "coletar agora mesmo assim" em vez de duplicar.
 """
+
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -16,8 +23,25 @@ from src.api import schemas
 from src.api.dependencias import get_db, logger_api
 from src.persistencia import repositorio
 from src.coletores.coletor_item import buscar_cotacao_atual, CotacaoIndisponivelError
+from src.agendador.scheduler import proxima_execucao
 
 router = APIRouter(prefix="/items", tags=["items"])
+
+
+def _detalhe_moeda_duplicada(item):
+    proxima = proxima_execucao()
+    segundos = None
+    if proxima is not None:
+        agora = datetime.now(proxima.tzinfo or timezone.utc)
+        segundos = max(0, int((proxima - agora).total_seconds()))
+
+    return {
+        "mensagem": f"A moeda {item.moeda} já está cadastrada.",
+        "item_id": item.id,
+        "nome": item.nome,
+        "moeda": item.moeda,
+        "segundos_ate_proxima_coleta": segundos,
+    }
 
 
 def _montar_item_out(db: Session, item) -> schemas.ItemOut:
@@ -33,6 +57,10 @@ def _montar_item_out(db: Session, item) -> schemas.ItemOut:
 
 @router.post("", response_model=schemas.ItemOut, status_code=status.HTTP_201_CREATED)
 def cadastrar_item(payload: schemas.ItemCreate, db: Session = Depends(get_db)):
+    existente = repositorio.obter_item_por_moeda(db, payload.moeda)
+    if existente is not None:
+        raise HTTPException(status_code=409, detail=_detalhe_moeda_duplicada(existente))
+
     try:
         resultado = buscar_cotacao_atual(payload.moeda, logger_api)
     except CotacaoIndisponivelError as erro:
