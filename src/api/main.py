@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.infra.ambiente import preparar_ambiente
@@ -38,6 +39,16 @@ app = FastAPI(
 
 app.include_router(itens.router)
 app.include_router(cotacoes.router)
+
+# Frontend roda numa origem diferente (arquivo estático servido à parte, ou
+# futuramente Lovable) - liberado para qualquer origem por ser um projeto
+# de ambientação local. Num deploy real, restringir a origem exata.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(RequestValidationError)

@@ -18,6 +18,7 @@ O robô sempre consulta o **mês civil anterior** ao da execução (rodando em q
 - [Detalhes técnicos do scraping](#detalhes-técnicos-do-scraping)
 - [Manutenção dos seletores (XPath)](#manutenção-dos-seletores-xpath)
 - [Backend API — Monitor de itens](#backend-api--monitor-de-itens)
+- [Frontend](#frontend)
 
 ## Como funciona
 
@@ -274,3 +275,45 @@ desenvolvimento (`dados/monitor.db`).
   longo.
 - Migrations (Alembic) em vez de `create_all()`, se o schema evoluir depois
   do primeiro deploy.
+
+## Frontend
+
+HTML/CSS/JS puro (sem build, sem framework) em `frontend/`, seguindo o
+design system btime (`frontend/styles.css`, tokens `--bt-*`). Consome a
+API real — nada mockado. Publicação futura no Lovable é só hospedagem: por
+isso o frontend é estático, sem passo de build, e a URL do backend fica
+num único lugar (`frontend/config.js`).
+
+### Telas
+
+- **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a
+  última cotação. Botão "+ Novo item" abre um modal de cadastro.
+- **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta,
+  botão "Coletar agora", e abas Gráfico/Tabela para o histórico.
+- **Consulta livre** (`#/consulta`) — formulário de moeda + período que
+  bate direto no `GET /cotacoes`, sem precisar de item cadastrado.
+
+O gráfico de histórico é SVG desenhado à mão (sem biblioteca externa):
+duas séries (compra/venda), crosshair com tooltip no hover, marcador de
+fim de linha e grade horizontal discreta — mantém o projeto sem
+dependência de build ou CDN.
+
+### Como rodar
+
+Backend e frontend rodam em processos/portas separados (o frontend chama
+a API via `fetch`, então precisa dos dois no ar):
+
+```bash
+# terminal 1
+python run_backend.py
+
+# terminal 2
+python run_frontend.py
+```
+
+Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html`
+direto como arquivo (`file://`) não funciona — o navegador bloqueia o
+`fetch` por CORS nesse esquema; por isso existe o `run_frontend.py`.
+
+Se o backend rodar em outra porta/host, ajustar `API_BASE_URL` em
+`frontend/config.js`.

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btime · Monitor de Cotações</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="bt-root">
+
+  <header class="bt-navbar">
+    <a href="#/items" class="bt-navbar__brand">btime <span class="bt-body-sm" style="font-weight:400;color:var(--bt-text-muted)">· Monitor de Cotações</span></a>
+    <nav class="bt-navbar__links" aria-label="Navegação principal">
+      <button type="button" class="bt-navlink" data-route="#/items" data-nav>Itens</button>
+      <button type="button" class="bt-navlink" data-route="#/consulta" data-nav>Consulta livre</button>
+    </nav>
+  </header>
+
+  <main class="app-shell">
+
+    <div id="global-alert" class="app-hidden"></div>
+
+    <!-- ============================== VIEW: Lista de itens ============================== -->
+    <section id="view-items" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
+      <div class="app-page-head">
+        <div>
+          <h1 class="bt-h1">Itens monitorados</h1>
+          <p class="bt-body">Moedas cadastradas, cada uma com a última cotação coletada da PTAX.</p>
+        </div>
+        <button type="button" class="bt-btn bt-btn--primary" id="btn-open-create">+ Novo item</button>
+      </div>
+
+      <div id="items-loading" class="app-grid app-hidden">
+        <div class="bt-card"><div class="bt-skeleton" style="height:20px;width:60%"></div><div class="bt-skeleton" style="height:32px;width:40%"></div></div>
+        <div class="bt-card"><div class="bt-skeleton" style="height:20px;width:60%"></div><div class="bt-skeleton" style="height:32px;width:40%"></div></div>
+        <div class="bt-card"><div class="bt-skeleton" style="height:20px;width:60%"></div><div class="bt-skeleton" style="height:32px;width:40%"></div></div>
+      </div>
+
+      <div id="items-empty" class="bt-empty app-hidden">
+        <strong class="bt-h4">Nenhum item cadastrado ainda</strong>
+        <p class="bt-body-sm">Cadastre uma moeda para começar a monitorar a cotação ao longo do tempo.</p>
+        <button type="button" class="bt-btn bt-btn--secondary" data-open-create>+ Novo item</button>
+      </div>
+
+      <div id="items-grid" class="app-grid app-hidden"></div>
+    </section>
+
+    <!-- ============================== VIEW: Detalhe do item ============================== -->
+    <section id="view-detail" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
+      <button type="button" class="bt-btn--link bt-btn" style="justify-content:flex-start;padding:0;" data-route="#/items">&larr; Voltar para itens</button>
+
+      <div class="app-page-head">
+        <div>
+          <span class="bt-label" id="detail-moeda-label">MOEDA</span>
+          <h1 class="bt-h1" id="detail-nome">—</h1>
+        </div>
+        <button type="button" class="bt-btn bt-btn--primary" id="btn-collect">Coletar agora</button>
+      </div>
+
+      <div id="detail-alert" class="app-hidden"></div>
+
+      <div class="app-stat-row" id="detail-stats">
+        <div class="app-stat">
+          <span class="bt-label">Compra</span>
+          <span class="app-stat__value bt-mono" id="stat-compra" style="font-size:var(--bt-text-2xl)">—</span>
+        </div>
+        <div class="app-stat">
+          <span class="bt-label">Venda</span>
+          <span class="app-stat__value bt-mono" id="stat-venda" style="font-size:var(--bt-text-2xl)">—</span>
+        </div>
+        <div class="app-stat">
+          <span class="bt-label">Data da cotação</span>
+          <span class="app-stat__value" id="stat-data" style="font-size:var(--bt-text-lg)">—</span>
+        </div>
+        <div class="app-stat">
+          <span class="bt-label">Coletado em</span>
+          <span class="app-stat__value" id="stat-coletado" style="font-size:var(--bt-text-lg)">—</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="bt-tabs" role="tablist">
+          <button type="button" class="bt-tab" role="tab" aria-selected="true" data-tab="grafico">Gráfico</button>
+          <button type="button" class="bt-tab" role="tab" aria-selected="false" data-tab="tabela">Tabela</button>
+        </div>
+
+        <div data-tab-panel="grafico" style="margin-top:var(--bt-space-4);">
+          <div class="app-chart-wrap">
+            <div class="app-chart-legend">
+              <span class="app-chart-legend__item"><span class="app-chart-legend__key" style="background:var(--bt-brand)"></span>Compra</span>
+              <span class="app-chart-legend__item"><span class="app-chart-legend__key" style="background:var(--bt-accent)"></span>Venda</span>
+            </div>
+            <div id="chart-container" style="position:relative;"></div>
+            <div id="chart-empty" class="bt-empty app-hidden">
+              <span class="bt-body-sm">Ainda não há histórico suficiente para desenhar o gráfico.</span>
+            </div>
+          </div>
+        </div>
+
+        <div data-tab-panel="tabela" class="app-hidden" style="margin-top:var(--bt-space-4);">
+          <div class="bt-table-wrap">
+            <table class="bt-table">
+              <thead>
+                <tr>
+                  <th>Data da cotação</th>
+                  <th data-numeric>Compra</th>
+                  <th data-numeric>Venda</th>
+                  <th>Coletado em</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== VIEW: Consulta livre ============================== -->
+    <section id="view-consulta" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
+      <div>
+        <h1 class="bt-h1">Consulta livre</h1>
+        <p class="bt-body">Busque qualquer moeda e período direto na PTAX do Banco Central, sem precisar cadastrar um item.</p>
+      </div>
+
+      <form id="form-consulta" class="bt-card" novalidate>
+        <div class="app-form-grid">
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="consulta-moeda">Moeda</label>
+            <input class="bt-input" id="consulta-moeda" name="moeda" maxlength="3" placeholder="EUR" required>
+          </div>
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="consulta-inicio">Data início</label>
+            <input class="bt-input" type="date" id="consulta-inicio" name="data_inicio" required>
+          </div>
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="consulta-fim">Data fim</label>
+            <input class="bt-input" type="date" id="consulta-fim" name="data_fim" required>
+          </div>
+          <button type="submit" class="bt-btn bt-btn--primary" id="btn-consultar">Buscar</button>
+        </div>
+      </form>
+
+      <div id="consulta-alert" class="app-hidden"></div>
+
+      <div id="consulta-resultado" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-4);">
+        <div class="app-chart-wrap">
+          <div class="app-chart-legend">
+            <span class="app-chart-legend__item"><span class="app-chart-legend__key" style="background:var(--bt-brand)"></span>Compra</span>
+            <span class="app-chart-legend__item"><span class="app-chart-legend__key" style="background:var(--bt-accent)"></span>Venda</span>
+          </div>
+          <div id="consulta-chart-container" style="position:relative;"></div>
+        </div>
+        <div class="bt-table-wrap">
+          <table class="bt-table">
+            <thead>
+              <tr><th>Data da cotação</th><th data-numeric>Compra</th><th data-numeric>Venda</th></tr>
+            </thead>
+            <tbody id="consulta-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="consulta-empty" class="bt-empty app-hidden">
+        <span class="bt-body-sm">Nenhum boletim encontrado para essa moeda/período.</span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================== MODAL: Cadastrar item ============================== -->
+  <div id="modal-create" class="bt-modal app-hidden">
+    <div class="bt-modal__scrim" data-close-modal></div>
+    <div class="bt-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+      <h2 class="bt-modal__title" id="modal-create-title">Cadastrar item</h2>
+      <p class="bt-body-sm">Ao cadastrar, o backend já valida a moeda na PTAX e grava a primeira cotação.</p>
+
+      <form id="form-create">
+        <div style="display:flex;flex-direction:column;gap:var(--bt-space-4);">
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="create-nome">Nome</label>
+            <input class="bt-input" id="create-nome" name="nome" placeholder="Dólar Americano" required>
+          </div>
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="create-moeda">Moeda (código PTAX, 3 letras)</label>
+            <input class="bt-input" id="create-moeda" name="moeda" maxlength="3" placeholder="USD" required>
+            <span class="bt-field__hint">Qualquer moeda aceita pela PTAX do Banco Central — não só USD/EUR/GBP.</span>
+          </div>
+        </div>
+
+        <div id="create-alert" class="app-hidden" style="margin-top:var(--bt-space-4);"></div>
+
+        <div class="bt-modal__footer" style="margin-top:var(--bt-space-4);">
+          <button type="button" class="bt-btn bt-btn--secondary" data-close-modal>Cancelar</button>
+          <button type="submit" class="bt-btn bt-btn--primary" id="btn-submit-create">Cadastrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
