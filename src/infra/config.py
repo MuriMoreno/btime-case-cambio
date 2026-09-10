@@ -70,6 +70,14 @@ API_URL_BASE = (
     "CotacaoMoedaPeriodo"
 )
 
+# Recurso Moedas: lista as moedas parametrizadas na PTAX (código + nome).
+# Usado pelo backend para alimentar o seletor de moeda do frontend, em vez
+# de o usuário digitar um código de cabeça.
+API_URL_MOEDAS = (
+    "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/"
+    "Moedas?$format=json"
+)
+
 # Boletim que interessa: o site do BCB exibe o FECHAMENTO. A API retorna
 # cinco boletins por dia (abertura, 3 intermediários, fechamento); filtramos
 # só o de fechamento para casar com o scraping.

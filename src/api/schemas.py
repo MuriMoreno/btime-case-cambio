@@ -48,3 +48,8 @@ class CotacaoConsultaOut(BaseModel):
     data_cotacao: date
     valor_compra: float
     valor_venda: float
+
+
+class MoedaOut(BaseModel):
+    codigo: str
+    nome: str

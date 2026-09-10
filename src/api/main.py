@@ -14,7 +14,7 @@ from src.infra.ambiente import preparar_ambiente
 from src.persistencia.database import criar_tabelas
 from src.agendador.scheduler import iniciar_agendador, parar_agendador
 from src.api.dependencias import logger_api
-from src.api.routers import itens, cotacoes
+from src.api.routers import itens, cotacoes, moedas
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app = FastAPI(
 
 app.include_router(itens.router)
 app.include_router(cotacoes.router)
+app.include_router(moedas.router)
 
 # Frontend roda numa origem diferente (arquivo estático servido à parte, ou
 # futuramente Lovable) - liberado para qualquer origem por ser um projeto

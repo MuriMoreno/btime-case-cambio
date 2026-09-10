@@ -10,6 +10,7 @@ from datetime import date
 
 import src.api.routers.itens as itens_router
 import src.api.routers.cotacoes as cotacoes_router
+import src.api.routers.moedas as moedas_router
 from src.coletores.coletor_item import CotacaoAtual, CotacaoIndisponivelError
 
 
@@ -215,5 +216,35 @@ def test_consulta_livre_falha_da_fonte(client, monkeypatch):
         "/cotacoes",
         params={"moeda": "EUR", "data_inicio": "2026-09-01", "data_fim": "2026-09-10"},
     )
+
+    assert resposta.status_code == 502
+
+
+# -- GET /moedas ------------------------------------------------------------
+
+def test_listar_moedas_sucesso(client, monkeypatch):
+    moedas_cruas = [
+        {"simbolo": "USD", "nomeFormatado": "Dólar dos Estados Unidos"},
+        {"simbolo": "EUR", "nomeFormatado": "Euro"},
+    ]
+    monkeypatch.setattr(moedas_router, "listar_moedas", lambda logger: moedas_cruas)
+
+    resposta = client.get("/moedas")
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo == [
+        {"codigo": "USD", "nome": "Dólar dos Estados Unidos"},
+        {"codigo": "EUR", "nome": "Euro"},
+    ]
+
+
+def test_listar_moedas_falha_da_fonte(client, monkeypatch):
+    def falhar(logger):
+        raise RuntimeError("PTAX fora do ar")
+
+    monkeypatch.setattr(moedas_router, "listar_moedas", falhar)
+
+    resposta = client.get("/moedas")
 
     assert resposta.status_code == 502

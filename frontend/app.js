@@ -32,6 +32,7 @@ const api = {
   coletarAgora: (id) => apiRequest(`/items/${id}/collect`, { method: "POST" }),
   consultaLivre: (moeda, dataInicio, dataFim) =>
     apiRequest(`/cotacoes?moeda=${encodeURIComponent(moeda)}&data_inicio=${dataInicio}&data_fim=${dataFim}`),
+  listarMoedas: () => apiRequest("/moedas"),
 };
 
 /* ==========================================================================
@@ -200,9 +201,51 @@ function criarCardItem(item) {
    Modal: cadastrar item
    ========================================================================== */
 
-function abrirModalCriar() {
+let moedasCache = null;
+
+async function carregarMoedas() {
+  if (moedasCache) return moedasCache;
+  try {
+    moedasCache = await api.listarMoedas();
+  } catch (erro) {
+    moedasCache = [];
+    console.error("Falha ao carregar lista de moedas:", erro.message);
+  }
+  return moedasCache;
+}
+
+function popularSelectMoedas(moedas) {
+  const select = document.getElementById("create-moeda");
+  select.innerHTML = "";
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.disabled = true;
+  placeholder.selected = true;
+  placeholder.textContent = moedas.length > 0 ? "Selecione a moeda" : "Não foi possível carregar as moedas";
+  select.appendChild(placeholder);
+
+  moedas.forEach((m) => {
+    const option = document.createElement("option");
+    option.value = m.codigo;
+    option.dataset.nome = m.nome;
+    option.textContent = `${m.codigo} — ${m.nome}`;
+    select.appendChild(option);
+  });
+
+  select.disabled = moedas.length === 0;
+}
+
+async function abrirModalCriar() {
   document.getElementById("modal-create").classList.remove("app-hidden");
   document.getElementById("create-nome").focus();
+
+  const select = document.getElementById("create-moeda");
+  select.disabled = true;
+  select.innerHTML = '<option value="" disabled selected>Carregando moedas…</option>';
+
+  const moedas = await carregarMoedas();
+  popularSelectMoedas(moedas);
 }
 
 function fecharModalCriar() {
@@ -617,6 +660,15 @@ function wireEventos() {
   document.querySelectorAll("[data-close-modal]").forEach((el) => el.addEventListener("click", fecharModalCriar));
   document.getElementById("form-create").addEventListener("submit", aoSubmeterCriacao);
 
+  // Sugere o nome da moeda escolhida, se o usuário ainda não digitou nada.
+  document.getElementById("create-moeda").addEventListener("change", (evento) => {
+    const campoNome = document.getElementById("create-nome");
+    const opcao = evento.target.selectedOptions[0];
+    if (!campoNome.value.trim() && opcao && opcao.dataset.nome) {
+      campoNome.value = opcao.dataset.nome;
+    }
+  });
+
   document.getElementById("btn-collect").addEventListener("click", aoClicarColetar);
 
   document.querySelectorAll(".bt-tab").forEach((tab) => {
@@ -639,4 +691,5 @@ document.addEventListener("DOMContentLoaded", () => {
   wireEventos();
   definirDatasPadraoConsulta();
   router();
+  carregarMoedas(); // pré-carrega em segundo plano, pro modal abrir já populado
 });

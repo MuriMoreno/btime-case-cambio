@@ -236,6 +236,7 @@ consumida por um frontend depois (hospedado no Lovable).
 | GET | `/items/{id}/history` | Série histórica de coletas do item (gráfico) |
 | POST | `/items/{id}/collect` | Força uma coleta manual imediata |
 | GET | `/cotacoes?moeda=&data_inicio=&data_fim=` | Consulta livre na PTAX, sem item cadastrado |
+| GET | `/moedas` | Lista as moedas que a PTAX aceita (código + nome) — alimenta o seletor do frontend |
 
 ### Agendamento
 
@@ -287,7 +288,9 @@ num único lugar (`frontend/config.js`).
 ### Telas
 
 - **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a
-  última cotação. Botão "+ Novo item" abre um modal de cadastro.
+  última cotação. Botão "+ Novo item" abre um modal de cadastro, com um
+  seletor de moeda populado via `GET /moedas` (em vez de digitar o código
+  de cabeça) — sugere o nome do item automaticamente ao escolher a moeda.
 - **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta,
   botão "Coletar agora", e abas Gráfico/Tabela para o histórico.
 - **Consulta livre** (`#/consulta`) — formulário de moeda + período que

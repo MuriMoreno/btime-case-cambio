@@ -44,6 +44,39 @@ def _montar_url(moeda, data_inicial, data_final):
     )
 
 
+def _requisitar_json(url, etapa, logger):
+    """
+    GET com retry num recurso PTAX que devolve JSON no formato OData
+    ({"value": [...]}). Comum a qualquer recurso da PTAX (cotações, moedas).
+
+    Levanta RuntimeError se a requisicao falhar apos as tentativas de retry
+    (status != 200) ou se o JSON vier invalido - nos dois casos a resposta
+    crua e salva como evidencia antes de propagar o erro.
+    """
+    def requisitar():
+        return requests.get(url, timeout=config.API_TIMEOUT)
+
+    resposta = executar_com_retry(requisitar, logger, f"Requisicao PTAX ({etapa})")
+
+    if resposta.status_code != 200:
+        caminho = salvar_resposta_crua(resposta.text, f"api_status_{etapa}", logger)
+        raise RuntimeError(
+            f"API PTAX retornou status {resposta.status_code} em {etapa}. "
+            f"Resposta crua em: {caminho}"
+        )
+
+    try:
+        dados = resposta.json()
+    except json.JSONDecodeError:
+        caminho = salvar_resposta_crua(resposta.text, f"api_json_{etapa}", logger)
+        raise RuntimeError(
+            f"API PTAX retornou JSON invalido em {etapa}. "
+            f"Resposta crua em: {caminho}"
+        )
+
+    return dados.get("value", [])
+
+
 def buscar_boletins(moeda, data_inicial, data_final, logger):
     """
     Busca os boletins PTAX (todos os tipos) de uma moeda num periodo.
@@ -52,34 +85,15 @@ def buscar_boletins(moeda, data_inicial, data_final, logger):
     "value"). Lista vazia significa requisicao bem-sucedida sem boletins no
     periodo (moeda invalida, ou periodo sem pregao) - quem chama decide como
     interpretar isso.
-
-    Levanta RuntimeError se a requisicao falhar apos as tentativas de retry
-    (status != 200) ou se o JSON vier invalido - nos dois casos a resposta
-    crua e salva como evidencia antes de propagar o erro.
     """
     url = _montar_url(moeda, data_inicial, data_final)
+    return _requisitar_json(url, moeda, logger)
 
-    def requisitar():
-        return requests.get(url, timeout=config.API_TIMEOUT)
 
-    resposta = executar_com_retry(
-        requisitar, logger, f"Requisicao PTAX ({moeda})"
-    )
-
-    if resposta.status_code != 200:
-        caminho = salvar_resposta_crua(resposta.text, f"api_status_{moeda}", logger)
-        raise RuntimeError(
-            f"API PTAX retornou status {resposta.status_code} para {moeda}. "
-            f"Resposta crua em: {caminho}"
-        )
-
-    try:
-        dados = resposta.json()
-    except json.JSONDecodeError:
-        caminho = salvar_resposta_crua(resposta.text, f"api_json_{moeda}", logger)
-        raise RuntimeError(
-            f"API PTAX retornou JSON invalido para {moeda}. "
-            f"Resposta crua em: {caminho}"
-        )
-
-    return dados.get("value", [])
+def listar_moedas(logger):
+    """
+    Lista as moedas parametrizadas na PTAX (código de 3 letras + nome),
+    via o recurso Moedas. É a mesma lista que alimenta o seletor de moeda
+    do frontend - evita o usuário digitar um código de cabeça.
+    """
+    return _requisitar_json(config.API_URL_MOEDAS, "moedas", logger)

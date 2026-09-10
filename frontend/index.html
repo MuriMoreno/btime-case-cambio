@@ -184,9 +184,11 @@
             <input class="bt-input" id="create-nome" name="nome" placeholder="Dólar Americano" required>
           </div>
           <div class="bt-field">
-            <label class="bt-field__label" data-required for="create-moeda">Moeda (código PTAX, 3 letras)</label>
-            <input class="bt-input" id="create-moeda" name="moeda" maxlength="3" placeholder="USD" required>
-            <span class="bt-field__hint">Qualquer moeda aceita pela PTAX do Banco Central — não só USD/EUR/GBP.</span>
+            <label class="bt-field__label" data-required for="create-moeda">Moeda</label>
+            <select class="bt-select" id="create-moeda" name="moeda" required>
+              <option value="" disabled selected>Selecione a moeda</option>
+            </select>
+            <span class="bt-field__hint">Lista carregada direto da PTAX do Banco Central.</span>
           </div>
         </div>
 
