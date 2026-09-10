@@ -1,58 +1,39 @@
 """
-Testes do fluxo de autenticação real: registro, login e proteção das
-rotas por token JWT. Ao contrário dos outros arquivos de teste (que usam
-a fixture `client`, com autenticação "bypassada"), estes usam
-`client_real_auth` porque aqui o próprio mecanismo de auth é o que está
-sendo testado.
+Testes do fluxo de autenticação real: login e proteção das rotas por
+token JWT. Ao contrário dos outros arquivos de teste (que usam a fixture
+`client`, com autenticação "bypassada"), estes usam `client_real_auth`
+porque aqui o próprio mecanismo de auth é o que está sendo testado.
+
+Não existe endpoint público de cadastro (decisão: contas são criadas via
+criar_usuario.py, uma ação administrativa) - os testes semeiam o usuário
+direto no banco com a fixture `criar_usuario_teste`.
 """
 
 
-def test_registrar_e_logar(client_real_auth):
+def test_auth_registrar_nao_existe(client_real_auth):
+    """Não deve haver cadastro público na API."""
     resposta = client_real_auth.post(
-        "/auth/registrar", json={"email": "muri@btime.com", "senha": "senha123"}
+        "/auth/registrar", json={"email": "x@btime.com", "senha": "senha123"}
     )
-    assert resposta.status_code == 201
-    assert resposta.json()["email"] == "muri@btime.com"
-    assert "senha" not in resposta.json() and "senha_hash" not in resposta.json()
 
-    login = client_real_auth.post(
+    assert resposta.status_code == 404
+
+
+def test_login_sucesso(client_real_auth, criar_usuario_teste):
+    criar_usuario_teste("muri@btime.com", "senha123")
+
+    resposta = client_real_auth.post(
         "/auth/login", json={"email": "muri@btime.com", "senha": "senha123"}
     )
-    assert login.status_code == 200
-    corpo = login.json()
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
     assert corpo["token_type"] == "bearer"
     assert corpo["access_token"]
 
 
-def test_registrar_email_duplicado(client_real_auth):
-    payload = {"email": "duplicado@btime.com", "senha": "senha123"}
-    client_real_auth.post("/auth/registrar", json=payload)
-
-    resposta = client_real_auth.post("/auth/registrar", json=payload)
-
-    assert resposta.status_code == 409
-
-
-def test_registrar_email_invalido(client_real_auth):
-    resposta = client_real_auth.post(
-        "/auth/registrar", json={"email": "nao-e-email", "senha": "senha123"}
-    )
-
-    assert resposta.status_code == 400
-
-
-def test_registrar_senha_curta(client_real_auth):
-    resposta = client_real_auth.post(
-        "/auth/registrar", json={"email": "curta@btime.com", "senha": "123"}
-    )
-
-    assert resposta.status_code == 400
-
-
-def test_login_senha_errada(client_real_auth):
-    client_real_auth.post(
-        "/auth/registrar", json={"email": "a@btime.com", "senha": "senha123"}
-    )
+def test_login_senha_errada(client_real_auth, criar_usuario_teste):
+    criar_usuario_teste("a@btime.com", "senha123")
 
     resposta = client_real_auth.post(
         "/auth/login", json={"email": "a@btime.com", "senha": "errada"}
@@ -83,10 +64,8 @@ def test_rota_protegida_com_token_invalido(client_real_auth):
     assert resposta.status_code == 401
 
 
-def test_rota_protegida_com_token_valido(client_real_auth):
-    client_real_auth.post(
-        "/auth/registrar", json={"email": "logado@btime.com", "senha": "senha123"}
-    )
+def test_rota_protegida_com_token_valido(client_real_auth, criar_usuario_teste):
+    criar_usuario_teste("logado@btime.com", "senha123")
     login = client_real_auth.post(
         "/auth/login", json={"email": "logado@btime.com", "senha": "senha123"}
     )

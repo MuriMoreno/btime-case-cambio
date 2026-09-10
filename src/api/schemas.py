@@ -65,16 +65,6 @@ def _validar_email(valor):
     return valor.strip().lower()
 
 
-class UsuarioCreate(BaseModel):
-    email: str
-    senha: str = Field(..., min_length=6, max_length=100)
-
-    @field_validator("email")
-    @classmethod
-    def email_valido(cls, valor):
-        return _validar_email(valor)
-
-
 class LoginRequest(BaseModel):
     email: str
     senha: str
@@ -83,14 +73,6 @@ class LoginRequest(BaseModel):
     @classmethod
     def email_valido(cls, valor):
         return _validar_email(valor)
-
-
-class UsuarioOut(BaseModel):
-    id: int
-    email: str
-    criado_em: datetime
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenOut(BaseModel):

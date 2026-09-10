@@ -70,7 +70,6 @@ const api = {
     apiRequest(`/cotacoes?moeda=${encodeURIComponent(moeda)}&data_inicio=${dataInicio}&data_fim=${dataFim}`),
   listarMoedas: () => apiRequest("/moedas"),
   login: (email, senha) => apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email, senha }) }),
-  registrar: (email, senha) => apiRequest("/auth/registrar", { method: "POST", body: JSON.stringify({ email, senha }) }),
 };
 
 /* ==========================================================================
@@ -831,8 +830,6 @@ function renderChart(container, dados, elementoVazio) {
    View: login
    ========================================================================== */
 
-let modoLogin = "entrar";
-
 async function aoSubmeterLogin(evento) {
   evento.preventDefault();
   const email = document.getElementById("login-email").value.trim();
@@ -845,9 +842,6 @@ async function aoSubmeterLogin(evento) {
   botao.disabled = true;
 
   try {
-    if (modoLogin === "criar") {
-      await api.registrar(email, senha);
-    }
     const resultado = await api.login(email, senha);
     salvarToken(resultado.access_token);
     document.getElementById("form-login").reset();
@@ -858,15 +852,6 @@ async function aoSubmeterLogin(evento) {
     botao.removeAttribute("aria-busy");
     botao.disabled = false;
   }
-}
-
-function aoTrocarModoLogin(tab) {
-  modoLogin = tab.dataset.loginTab === "criar" ? "criar" : "entrar";
-  document.querySelectorAll("[data-login-tab]").forEach((t) => t.setAttribute("aria-selected", "false"));
-  tab.setAttribute("aria-selected", "true");
-  document.getElementById("btn-login-submit").textContent =
-    modoLogin === "criar" ? "Criar conta e entrar" : "Entrar";
-  clearAlert(document.getElementById("login-alert"));
 }
 
 function aoClicarSair() {
@@ -926,9 +911,6 @@ function wireEventos() {
   document.getElementById("form-consulta").addEventListener("submit", aoSubmeterConsulta);
 
   document.getElementById("form-login").addEventListener("submit", aoSubmeterLogin);
-  document.querySelectorAll("[data-login-tab]").forEach((tab) => {
-    tab.addEventListener("click", () => aoTrocarModoLogin(tab));
-  });
   document.getElementById("btn-logout").addEventListener("click", aoClicarSair);
 
   window.addEventListener("hashchange", router);

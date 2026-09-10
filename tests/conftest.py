@@ -13,6 +13,8 @@ from fastapi.testclient import TestClient
 
 from src.persistencia.database import Base
 from src.persistencia import modelos  # noqa: F401 - registra Item/Coleta/Usuario no Base
+from src.persistencia import repositorio
+from src.auth.seguranca import hash_senha
 from src.api.main import app
 from src.api.dependencias import get_db, obter_usuario_atual
 
@@ -43,7 +45,7 @@ def db_session(tmp_path):
             db.close()
 
     app.dependency_overrides[get_db] = sobrescrever_get_db
-    yield
+    yield TestingSessionLocal
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
 
@@ -63,5 +65,22 @@ def client(db_session):
 
 @pytest.fixture()
 def client_real_auth(db_session):
-    """Cliente sem bypass - exercita o fluxo real de registro/login/token."""
+    """Cliente sem bypass - exercita o fluxo real de login/token."""
     return TestClient(app)
+
+
+@pytest.fixture()
+def criar_usuario_teste(db_session):
+    """
+    Semeia um usuário direto no banco de teste, sem passar pela API - não
+    existe endpoint público de cadastro (é uma ação administrativa, ver
+    criar_usuario.py).
+    """
+    def _criar(email="teste@btime.com", senha="senha123"):
+        db = db_session()
+        try:
+            return repositorio.criar_usuario(db, email=email, senha_hash=hash_senha(senha))
+        finally:
+            db.close()
+
+    return _criar

@@ -239,8 +239,12 @@ consumida por um frontend depois (hospedado no Lovable).
   local de propósito, pra não gerar custo num projeto de ambientação, mas
   o desenho do auth é o mesmo que valeria lá. Todas as rotas de
   `/items`, `/cotacoes` e `/moedas` exigem `Authorization: Bearer <token>`
-  — só `/auth/registrar` e `/auth/login` ficam abertos (óbvio: sem token
-  ainda não tem como autenticar).
+  — só `/auth/login` fica aberto.
+- **Sem cadastro público.** Uma API que vai pro cliente não deveria ter
+  tela de "criar conta" livre — conceder acesso é uma ação administrativa.
+  Contas são criadas com `python criar_usuario.py <email> <senha>`,
+  rodado localmente por quem administra o sistema (o equivalente, aqui,
+  a criar o usuário direto no painel do Supabase num projeto real).
 - **Alerta de variação brusca.** Em vez do endpoint de regra configurável
   que o desafio original sugere como bônus (`POST /items/{id}/alerts`),
   cada item cadastrado já vem com `variacao_percentual` calculada
@@ -256,7 +260,6 @@ consumida por um frontend depois (hospedado no Lovable).
 
 | Método | Rota | Descrição | Autenticação |
 |---|---|---|---|
-| POST | `/auth/registrar` | Cria uma conta (e-mail + senha) | Não |
 | POST | `/auth/login` | Autentica e devolve um JWT | Não |
 | POST | `/items` | Cadastra um item (moeda) e já grava a primeira coleta | Sim |
 | GET | `/items` | Lista os itens, com última coleta e variação % embutidas | Sim |
@@ -280,6 +283,7 @@ endpoint manual. Falha num item não interrompe os demais.
 
 ```bash
 pip install -r requirements.txt
+python criar_usuario.py seu@email.com suasenha   # só na primeira vez
 python run_backend.py
 # ou: uvicorn src.api.main:app --reload
 ```
@@ -324,10 +328,10 @@ num único lugar (`frontend/config.js`).
 
 ### Telas
 
-- **Login** (`#/login`) — abas Entrar/Criar conta, e-mail + senha reais
-  contra `/auth/login` e `/auth/registrar`. É a porta de entrada
-  obrigatória: sem token válido, o roteador manda qualquer outra rota de
-  volta pra cá.
+- **Login** (`#/login`) — e-mail + senha reais contra `/auth/login`. Sem
+  cadastro na tela (ver "Sem cadastro público" acima) — é a porta de
+  entrada obrigatória: sem token válido, o roteador manda qualquer outra
+  rota de volta pra cá.
 - **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a
   última cotação e, se a variação passou do limiar, um selo ▲/▼ de
   alerta. Botão "+ Novo item" abre um modal de cadastro, com um seletor
