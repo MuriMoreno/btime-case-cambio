@@ -232,18 +232,42 @@ consumida por um frontend depois (hospedado no Lovable).
   manual por item, dá pra consultar qualquer moeda + período direto na
   PTAX sem precisar cadastrar nada antes — pensado pra uma tela
   interativa do frontend onde a pessoa escolhe moeda e intervalo de datas.
+- **Autenticação real, não um login fake.** Tabela `usuarios` de verdade
+  (senha com hash bcrypt, nunca texto puro) + JWT — a mesma estrutura de
+  um sistema multiusuário, só que com um usuário só cadastrado (o do
+  Muri). Nos projetos da btime o banco é Supabase; aqui fica em SQLite
+  local de propósito, pra não gerar custo num projeto de ambientação, mas
+  o desenho do auth é o mesmo que valeria lá. Todas as rotas de
+  `/items`, `/cotacoes` e `/moedas` exigem `Authorization: Bearer <token>`
+  — só `/auth/registrar` e `/auth/login` ficam abertos (óbvio: sem token
+  ainda não tem como autenticar).
+- **Alerta de variação brusca.** Em vez do endpoint de regra configurável
+  que o desafio original sugere como bônus (`POST /items/{id}/alerts`),
+  cada item cadastrado já vem com `variacao_percentual` calculada
+  (compra: coleta mais recente vs. a anterior) em `GET /items`. O
+  frontend acende um selo quando o módulo passa de
+  `config.ALERTA_VARIACAO_PERCENTUAL` (padrão: 2%) — limiar pensado pra
+  filtrar ruído normal do dia a dia sem deixar passar um movimento fora
+  do comum, e em percentual (não R$) porque um valor fixo não faz sentido
+  comparando moedas de escalas tão diferentes (Iene vs. Libra, por
+  exemplo).
 
 ### Endpoints
 
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/items` | Cadastra um item (moeda) e já grava a primeira coleta |
-| GET | `/items` | Lista os itens, cada um com a última coleta embutida |
-| GET | `/items/{id}/latest` | Última cotação coletada do item |
-| GET | `/items/{id}/history` | Série histórica de coletas do item (gráfico) |
-| POST | `/items/{id}/collect` | Força uma coleta manual imediata |
-| GET | `/cotacoes?moeda=&data_inicio=&data_fim=` | Consulta livre na PTAX, sem item cadastrado |
-| GET | `/moedas` | Lista as moedas que a PTAX aceita (código + nome) — alimenta o seletor do frontend |
+| Método | Rota | Descrição | Autenticação |
+|---|---|---|---|
+| POST | `/auth/registrar` | Cria uma conta (e-mail + senha) | Não |
+| POST | `/auth/login` | Autentica e devolve um JWT | Não |
+| POST | `/items` | Cadastra um item (moeda) e já grava a primeira coleta | Sim |
+| GET | `/items` | Lista os itens, com última coleta e variação % embutidas | Sim |
+| GET | `/items/{id}/latest` | Última cotação coletada do item | Sim |
+| GET | `/items/{id}/history` | Série histórica de coletas do item (gráfico) | Sim |
+| POST | `/items/{id}/collect` | Força uma coleta manual imediata | Sim |
+| GET | `/cotacoes?moeda=&data_inicio=&data_fim=` | Consulta livre na PTAX, sem item cadastrado | Sim |
+| GET | `/moedas` | Lista as moedas que a PTAX aceita (código + nome) | Sim |
+
+No Swagger (`/docs`), o cadeado "Authorize" aceita colar o `access_token`
+devolvido pelo login (esquema Bearer simples, sem OAuth2 form).
 
 ### Agendamento
 
@@ -274,15 +298,21 @@ desenvolvimento (`dados/monitor.db`).
 
 ### O que faria diferente com mais tempo
 
-- `GET /items` faz uma query por item para achar a última coleta (N+1) —
-  aceitável no volume de um projeto de ambientação, mas viraria uma query
-  única (subquery/window function) num cenário com muitos itens.
-- Endpoint de alertas (`POST /items/{id}/alerts`) e Dockerfile/docker-compose
-  ficaram fora desta rodada — o desafio marca os dois como bônus.
+- `GET /items` faz uma query por item para achar a última coleta e a
+  variação (N+1) — aceitável no volume de um projeto de ambientação, mas
+  viraria uma query única (subquery/window function) num cenário com
+  muitos itens.
+- `JWT_SECRET_KEY` tem um valor padrão de desenvolvimento no `config.py`
+  — precisa vir de variável de ambiente antes de qualquer deploy real.
+- Endpoint de alertas configuráveis por regra (`POST /items/{id}/alerts`,
+  o bônus original do desafio) e Dockerfile/docker-compose ficaram fora
+  desta rodada.
 - Paginação em `GET /items/{id}/history` para itens com histórico muito
   longo.
 - Migrations (Alembic) em vez de `create_all()`, se o schema evoluir depois
   do primeiro deploy.
+- Sem refresh token — o JWT expira em 24h (`JWT_EXPIRACAO_HORAS`) e a
+  pessoa só loga de novo; suficiente pra um usuário só, não pra produção.
 
 ## Frontend
 
@@ -294,12 +324,18 @@ num único lugar (`frontend/config.js`).
 
 ### Telas
 
+- **Login** (`#/login`) — abas Entrar/Criar conta, e-mail + senha reais
+  contra `/auth/login` e `/auth/registrar`. É a porta de entrada
+  obrigatória: sem token válido, o roteador manda qualquer outra rota de
+  volta pra cá.
 - **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a
-  última cotação. Botão "+ Novo item" abre um modal de cadastro, com um
-  seletor de moeda populado via `GET /moedas` (em vez de digitar o código
-  de cabeça) — sugere o nome do item automaticamente ao escolher a moeda.
-- **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta,
-  botão "Coletar agora", e abas Gráfico/Tabela para o histórico.
+  última cotação e, se a variação passou do limiar, um selo ▲/▼ de
+  alerta. Botão "+ Novo item" abre um modal de cadastro, com um seletor
+  de moeda populado via `GET /moedas` (em vez de digitar o código de
+  cabeça) — sugere o nome do item automaticamente ao escolher a moeda.
+- **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta
+  (com o mesmo selo de alerta ao lado do nome), botão "Coletar agora", e
+  abas Gráfico/Tabela para o histórico.
 - **Consulta livre** (`#/consulta`) — seletor de moeda (só as já
   cadastradas, vindo de `GET /items`) + período, batendo direto no
   `GET /cotacoes` ao vivo em vez de só reaproveitar o que o agendador já
@@ -309,6 +345,15 @@ O gráfico de histórico é SVG desenhado à mão (sem biblioteca externa):
 duas séries (compra/venda), crosshair com tooltip no hover, marcador de
 fim de linha e grade horizontal discreta — mantém o projeto sem
 dependência de build ou CDN.
+
+### Autenticação no frontend
+
+O token JWT fica em `localStorage` (`frontend/app.js`, `CHAVE_TOKEN`) e
+`apiRequest()` anexa `Authorization: Bearer <token>` em toda chamada
+automaticamente. Se qualquer resposta vier `401` (token expirado,
+inválido, ou removido manualmente), o token é limpo e a pessoa é jogada
+de volta pra `#/login` — não precisa tratar isso em cada tela
+individualmente. Botão "Sair" na navbar limpa o token na hora.
 
 ### Como rodar
 

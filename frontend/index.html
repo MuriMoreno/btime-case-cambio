@@ -13,15 +13,49 @@
 
   <header class="bt-navbar">
     <a href="#/items" class="bt-navbar__brand">btime <span class="bt-body-sm" style="font-weight:400;color:var(--bt-text-muted)">· Monitor de Cotações</span></a>
-    <nav class="bt-navbar__links" aria-label="Navegação principal">
+    <nav class="bt-navbar__links" id="navbar-links" aria-label="Navegação principal">
       <button type="button" class="bt-navlink" data-route="#/items" data-nav>Itens</button>
       <button type="button" class="bt-navlink" data-route="#/consulta" data-nav>Consulta livre</button>
+      <button type="button" class="bt-navlink" id="btn-logout">Sair</button>
     </nav>
   </header>
 
   <main class="app-shell">
 
     <div id="global-alert" class="app-hidden"></div>
+
+    <!-- ============================== VIEW: Login ============================== -->
+    <section id="view-login" class="app-hidden" style="max-width:400px;margin:64px auto 0;">
+      <div class="bt-card" style="gap:var(--bt-space-5);">
+        <div>
+          <h1 class="bt-h2">Acessar</h1>
+          <p class="bt-body-sm">Monitor de Cotações — acesso restrito.</p>
+        </div>
+
+        <div class="bt-tabs" role="tablist">
+          <button type="button" class="bt-tab" role="tab" aria-selected="true" data-login-tab="entrar">Entrar</button>
+          <button type="button" class="bt-tab" role="tab" aria-selected="false" data-login-tab="criar">Criar conta</button>
+        </div>
+
+        <form id="form-login">
+          <div style="display:flex;flex-direction:column;gap:var(--bt-space-4);">
+            <div class="bt-field">
+              <label class="bt-field__label" data-required for="login-email">E-mail</label>
+              <input class="bt-input" type="email" id="login-email" required>
+            </div>
+            <div class="bt-field">
+              <label class="bt-field__label" data-required for="login-senha">Senha</label>
+              <input class="bt-input" type="password" id="login-senha" required minlength="6">
+              <span class="bt-field__hint" id="login-senha-hint"></span>
+            </div>
+          </div>
+
+          <div id="login-alert" class="app-hidden" style="margin-top:var(--bt-space-4);"></div>
+
+          <button type="submit" class="bt-btn bt-btn--primary bt-btn--block" id="btn-login-submit" style="margin-top:var(--bt-space-5);">Entrar</button>
+        </form>
+      </div>
+    </section>
 
     <!-- ============================== VIEW: Lista de itens ============================== -->
     <section id="view-items" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
@@ -55,7 +89,10 @@
       <div class="app-page-head">
         <div>
           <span class="bt-label" id="detail-moeda-label">MOEDA</span>
-          <h1 class="bt-h1" id="detail-nome">—</h1>
+          <h1 class="bt-h1" style="display:flex;align-items:center;gap:var(--bt-space-3);">
+            <span id="detail-nome">—</span>
+            <span id="detail-alerta-variacao"></span>
+          </h1>
         </div>
         <button type="button" class="bt-btn bt-btn--primary" id="btn-collect">Coletar agora</button>
       </div>

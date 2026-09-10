@@ -9,6 +9,7 @@ lógica. Quem sustenta o robô ajusta o comportamento neste único arquivo,
 sem precisar entender ou tocar no código dos coletores.
 """
 
+import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -120,3 +121,24 @@ JANELA_DIAS_COTACAO_ATUAL = 10
 # Limite de dias aceito na consulta livre (GET /cotacoes), para nao deixar
 # a requisicao varrer um intervalo enorme na PTAX de uma vez.
 JANELA_MAXIMA_CONSULTA_DIAS = 90
+
+# ---------------------------------------------------------------------------
+# Autenticacao.
+# Um usuario so (o do Muri) por enquanto, mas a estrutura (tabela de
+# usuarios, senha com hash, token JWT) e a mesma usada num sistema
+# multiusuario de verdade - nao um "login fake".
+# ---------------------------------------------------------------------------
+# Em desenvolvimento local usa o valor padrao abaixo; numa API exposta de
+# verdade, isso TEM que vir de variavel de ambiente (nunca commitado).
+JWT_SECRET_KEY = os.environ.get(
+    "JWT_SECRET_KEY", "chave-de-desenvolvimento-btime-nao-usar-em-producao"
+)
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRACAO_HORAS = 24
+
+# ---------------------------------------------------------------------------
+# Alerta de variacao brusca.
+# Se a cotacao (compra) variar isso ou mais entre a coleta mais recente e a
+# anterior, o item ganha um selo visual de alta/queda no frontend.
+# ---------------------------------------------------------------------------
+ALERTA_VARIACAO_PERCENTUAL = 2.0

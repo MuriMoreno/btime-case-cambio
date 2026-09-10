@@ -8,6 +8,8 @@ requisição real de rede, então rodam rápido e de forma determinística.
 
 from datetime import date
 
+import pytest
+
 import src.api.routers.itens as itens_router
 import src.api.routers.cotacoes as cotacoes_router
 import src.api.routers.moedas as moedas_router
@@ -157,6 +159,25 @@ def test_collect_sucesso(client, monkeypatch):
 
     assert resposta.status_code == 201
     assert resposta.json()["valor_compra"] == 5.20
+
+
+def test_variacao_percentual_null_com_uma_coleta(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)
+
+    lista = client.get("/items").json()
+
+    assert lista[0]["variacao_percentual"] is None
+
+
+def test_variacao_percentual_calculada_apos_segunda_coleta(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)  # compra=5.10
+    _mockar_cotacao(monkeypatch, valor_compra=5.61, valor_venda=5.63, data_cotacao=date(2026, 9, 10))
+
+    client.post(f"/items/{item['id']}/collect")
+    lista = client.get("/items").json()
+
+    # (5.61 - 5.10) / 5.10 * 100 = 10.0
+    assert lista[0]["variacao_percentual"] == pytest.approx(10.0)
 
 
 def test_collect_falha_da_fonte(client, monkeypatch):

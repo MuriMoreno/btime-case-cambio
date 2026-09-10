@@ -3,13 +3,15 @@ Lista as moedas que a PTAX aceita - alimenta o seletor de moeda do
 frontend no cadastro de item, em vez do usuário digitar um código de cabeça.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.schemas import MoedaOut
-from src.api.dependencias import logger_api
+from src.api.dependencias import logger_api, obter_usuario_atual
 from src.coletores.ptax_cliente import listar_moedas
 
-router = APIRouter(prefix="/moedas", tags=["moedas"])
+router = APIRouter(
+    prefix="/moedas", tags=["moedas"], dependencies=[Depends(obter_usuario_atual)]
+)
 
 
 @router.get("", response_model=list[MoedaOut])

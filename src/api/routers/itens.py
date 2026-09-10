@@ -20,12 +20,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.api import schemas
-from src.api.dependencias import get_db, logger_api
+from src.api.dependencias import get_db, logger_api, obter_usuario_atual
 from src.persistencia import repositorio
 from src.coletores.coletor_item import buscar_cotacao_atual, CotacaoIndisponivelError
 from src.agendador.scheduler import proxima_execucao
 
-router = APIRouter(prefix="/items", tags=["items"])
+router = APIRouter(
+    prefix="/items", tags=["items"], dependencies=[Depends(obter_usuario_atual)]
+)
 
 
 def _detalhe_moeda_duplicada(item):
@@ -44,6 +46,21 @@ def _detalhe_moeda_duplicada(item):
     }
 
 
+def _calcular_variacao_percentual(db: Session, item_id: int):
+    """
+    Variação % da cotação de compra entre a coleta mais recente e a
+    anterior. None se o item ainda não tem 2 coletas pra comparar.
+    """
+    duas_ultimas = repositorio.obter_duas_ultimas_coletas(db, item_id)
+    if len(duas_ultimas) < 2:
+        return None
+
+    atual, anterior = duas_ultimas[0].valor_compra, duas_ultimas[1].valor_compra
+    if not anterior:
+        return None
+    return ((atual - anterior) / anterior) * 100
+
+
 def _montar_item_out(db: Session, item) -> schemas.ItemOut:
     ultima = repositorio.obter_ultima_coleta(db, item.id)
     return schemas.ItemOut(
@@ -52,6 +69,7 @@ def _montar_item_out(db: Session, item) -> schemas.ItemOut:
         moeda=item.moeda,
         criado_em=item.criado_em,
         ultima_coleta=ultima,
+        variacao_percentual=_calcular_variacao_percentual(db, item.id),
     )
 
 

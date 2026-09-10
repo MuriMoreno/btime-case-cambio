@@ -15,11 +15,27 @@ class ApiError extends Error {
   }
 }
 
+const CHAVE_TOKEN = "btime_monitor_token";
+
+function obterToken() {
+  return localStorage.getItem(CHAVE_TOKEN);
+}
+function salvarToken(token) {
+  localStorage.setItem(CHAVE_TOKEN, token);
+}
+function limparToken() {
+  localStorage.removeItem(CHAVE_TOKEN);
+}
+function estaAutenticado() {
+  return !!obterToken();
+}
+
 async function apiRequest(path, options = {}) {
-  const resposta = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  const headers = { "Content-Type": "application/json" };
+  const token = obterToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const resposta = await fetch(`${API_BASE_URL}${path}`, { headers, ...options });
 
   let corpo = null;
   try {
@@ -29,6 +45,14 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!resposta.ok) {
+    // Sessão expirou ou token inválido: só faz sentido "deslogar" pra rotas
+    // protegidas - login/registrar já devolvem 401 pra credencial errada,
+    // e isso não é sessão expirando.
+    if (resposta.status === 401 && !path.startsWith("/auth/")) {
+      limparToken();
+      window.location.hash = "#/login";
+    }
+
     const detalhe = corpo && corpo.detail !== undefined ? corpo.detail : `Erro ${resposta.status} ao falar com a API.`;
     const mensagem = typeof detalhe === "string" ? detalhe : (detalhe && detalhe.mensagem) || `Erro ${resposta.status}`;
     throw new ApiError(mensagem, resposta.status, detalhe);
@@ -45,6 +69,8 @@ const api = {
   consultaLivre: (moeda, dataInicio, dataFim) =>
     apiRequest(`/cotacoes?moeda=${encodeURIComponent(moeda)}&data_inicio=${dataInicio}&data_fim=${dataFim}`),
   listarMoedas: () => apiRequest("/moedas"),
+  login: (email, senha) => apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email, senha }) }),
+  registrar: (email, senha) => apiRequest("/auth/registrar", { method: "POST", body: JSON.stringify({ email, senha }) }),
 };
 
 /* ==========================================================================
@@ -106,16 +132,30 @@ let idItemAtual = null;
 function router() {
   const hash = window.location.hash || "#/items";
 
+  // Guarda de autenticação: sem token, só a tela de login é alcançável.
+  if (hash !== "#/login" && !estaAutenticado()) {
+    window.location.hash = "#/login";
+    return;
+  }
+  if (hash === "#/login" && estaAutenticado()) {
+    window.location.hash = "#/items";
+    return;
+  }
+
+  document.getElementById("navbar-links").classList.toggle("app-hidden", hash === "#/login");
+
   document.querySelectorAll("[data-nav]").forEach((botao) => {
     const rotaAtiva = hash.startsWith("#/items") ? "#/items" : hash;
     botao.setAttribute("aria-current", botao.dataset.route === rotaAtiva ? "page" : "false");
   });
 
-  ["view-items", "view-detail", "view-consulta"].forEach((id) => {
+  ["view-login", "view-items", "view-detail", "view-consulta"].forEach((id) => {
     document.getElementById(id).classList.add("app-hidden");
   });
 
-  if (hash.startsWith("#/items/")) {
+  if (hash === "#/login") {
+    document.getElementById("view-login").classList.remove("app-hidden");
+  } else if (hash.startsWith("#/items/")) {
     const id = hash.split("/")[2];
     document.getElementById("view-detail").classList.remove("app-hidden");
     carregarDetalheItem(id);
@@ -162,6 +202,18 @@ async function carregarListaItens() {
   }
 }
 
+function criarBadgeVariacao(variacaoPercentual) {
+  if (variacaoPercentual === null || variacaoPercentual === undefined) return null;
+  if (Math.abs(variacaoPercentual) < ALERTA_VARIACAO_PERCENTUAL) return null;
+
+  const subiu = variacaoPercentual > 0;
+  const badge = document.createElement("span");
+  badge.className = `bt-badge ${subiu ? "bt-badge--success" : "bt-badge--danger"}`;
+  badge.title = "Variação desde a coleta anterior";
+  badge.textContent = `${subiu ? "▲" : "▼"} ${Math.abs(variacaoPercentual).toFixed(1)}%`;
+  return badge;
+}
+
 function criarCardItem(item) {
   const card = document.createElement("article");
   card.className = "bt-card bt-card--interactive bt-focusable";
@@ -178,11 +230,19 @@ function criarCardItem(item) {
   const titulo = document.createElement("h3");
   titulo.className = "bt-card__title";
   titulo.textContent = item.nome;
-  const badge = document.createElement("span");
-  badge.className = "bt-badge bt-badge--brand";
-  badge.textContent = item.moeda;
+
+  const selos = document.createElement("div");
+  selos.style.display = "flex";
+  selos.style.gap = "var(--bt-space-2)";
+  const badgeMoeda = document.createElement("span");
+  badgeMoeda.className = "bt-badge bt-badge--brand";
+  badgeMoeda.textContent = item.moeda;
+  selos.appendChild(badgeMoeda);
+  const badgeVariacao = criarBadgeVariacao(item.variacao_percentual);
+  if (badgeVariacao) selos.appendChild(badgeVariacao);
+
   head.appendChild(titulo);
-  head.appendChild(badge);
+  head.appendChild(selos);
   card.appendChild(head);
 
   if (item.ultima_coleta) {
@@ -383,6 +443,14 @@ async function carregarDetalheItem(id) {
   document.getElementById("detail-nome").textContent = item.nome;
   document.getElementById("detail-moeda-label").textContent = item.moeda;
   atualizarStatsDetalhe(item.ultima_coleta);
+
+  const containerBadge = document.getElementById("detail-alerta-variacao");
+  containerBadge.innerHTML = "";
+  const badgeVariacao = criarBadgeVariacao(item.variacao_percentual);
+  if (badgeVariacao) {
+    badgeVariacao.style.fontSize = "var(--bt-text-sm)";
+    containerBadge.appendChild(badgeVariacao);
+  }
 
   try {
     const historico = await api.historico(id);
@@ -760,6 +828,55 @@ function renderChart(container, dados, elementoVazio) {
 }
 
 /* ==========================================================================
+   View: login
+   ========================================================================== */
+
+let modoLogin = "entrar";
+
+async function aoSubmeterLogin(evento) {
+  evento.preventDefault();
+  const email = document.getElementById("login-email").value.trim();
+  const senha = document.getElementById("login-senha").value;
+  const alertaBox = document.getElementById("login-alert");
+  const botao = document.getElementById("btn-login-submit");
+
+  clearAlert(alertaBox);
+  botao.setAttribute("aria-busy", "true");
+  botao.disabled = true;
+
+  try {
+    if (modoLogin === "criar") {
+      await api.registrar(email, senha);
+    }
+    const resultado = await api.login(email, senha);
+    salvarToken(resultado.access_token);
+    document.getElementById("form-login").reset();
+    window.location.hash = "#/items";
+  } catch (erro) {
+    renderAlert(alertaBox, erro.message);
+  } finally {
+    botao.removeAttribute("aria-busy");
+    botao.disabled = false;
+  }
+}
+
+function aoTrocarModoLogin(tab) {
+  modoLogin = tab.dataset.loginTab === "criar" ? "criar" : "entrar";
+  document.querySelectorAll("[data-login-tab]").forEach((t) => t.setAttribute("aria-selected", "false"));
+  tab.setAttribute("aria-selected", "true");
+  document.getElementById("btn-login-submit").textContent =
+    modoLogin === "criar" ? "Criar conta e entrar" : "Entrar";
+  clearAlert(document.getElementById("login-alert"));
+}
+
+function aoClicarSair() {
+  limparToken();
+  itemsCache = [];
+  moedasCache = null;
+  window.location.hash = "#/login";
+}
+
+/* ==========================================================================
    Inicialização e wiring de eventos
    ========================================================================== */
 
@@ -793,9 +910,11 @@ function wireEventos() {
 
   document.getElementById("btn-collect").addEventListener("click", aoClicarColetar);
 
-  document.querySelectorAll(".bt-tab").forEach((tab) => {
+  // Abas Gráfico/Tabela (só as do detalhe do item - as de login usam
+  // data-login-tab e têm wiring próprio, não essa alternância genérica).
+  document.querySelectorAll("#view-detail .bt-tab[data-tab]").forEach((tab) => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".bt-tab").forEach((t) => t.setAttribute("aria-selected", "false"));
+      document.querySelectorAll("#view-detail .bt-tab[data-tab]").forEach((t) => t.setAttribute("aria-selected", "false"));
       tab.setAttribute("aria-selected", "true");
       const alvo = tab.dataset.tab;
       document.querySelectorAll("[data-tab-panel]").forEach((painel) => {
@@ -806,6 +925,12 @@ function wireEventos() {
 
   document.getElementById("form-consulta").addEventListener("submit", aoSubmeterConsulta);
 
+  document.getElementById("form-login").addEventListener("submit", aoSubmeterLogin);
+  document.querySelectorAll("[data-login-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => aoTrocarModoLogin(tab));
+  });
+  document.getElementById("btn-logout").addEventListener("click", aoClicarSair);
+
   window.addEventListener("hashchange", router);
 }
 
@@ -813,5 +938,5 @@ document.addEventListener("DOMContentLoaded", () => {
   wireEventos();
   definirDatasPadraoConsulta();
   router();
-  carregarMoedas(); // pré-carrega em segundo plano, pro modal abrir já populado
+  if (estaAutenticado()) carregarMoedas(); // pré-carrega, pro modal abrir já populado
 });

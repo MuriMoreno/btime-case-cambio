@@ -7,14 +7,16 @@ hora), além do que o agendador já coleta para os itens cadastrados.
 
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.infra import config
 from src.api.schemas import CotacaoConsultaOut
-from src.api.dependencias import logger_api
+from src.api.dependencias import logger_api, obter_usuario_atual
 from src.coletores.ptax_cliente import buscar_boletins
 
-router = APIRouter(prefix="/cotacoes", tags=["cotacoes"])
+router = APIRouter(
+    prefix="/cotacoes", tags=["cotacoes"], dependencies=[Depends(obter_usuario_atual)]
+)
 
 
 @router.get("", response_model=list[CotacaoConsultaOut])
