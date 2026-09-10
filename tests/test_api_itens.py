@@ -1,0 +1,219 @@
+"""
+Testes dos endpoints principais: cadastro/listagem de itens, última
+cotação, histórico, coleta manual e consulta livre por período.
+
+A coleta na PTAX é sempre mockada (monkeypatch) - os testes nunca fazem
+requisição real de rede, então rodam rápido e de forma determinística.
+"""
+
+from datetime import date
+
+import src.api.routers.itens as itens_router
+import src.api.routers.cotacoes as cotacoes_router
+from src.coletores.coletor_item import CotacaoAtual, CotacaoIndisponivelError
+
+
+def _mockar_cotacao(monkeypatch, valor_compra=5.10, valor_venda=5.12, data_cotacao=None):
+    resultado = CotacaoAtual(
+        data_cotacao=data_cotacao or date(2026, 9, 9),
+        valor_compra=valor_compra,
+        valor_venda=valor_venda,
+    )
+    monkeypatch.setattr(itens_router, "buscar_cotacao_atual", lambda moeda, logger: resultado)
+    return resultado
+
+
+def _criar_item(client, monkeypatch, moeda="USD"):
+    _mockar_cotacao(monkeypatch)
+    resposta = client.post("/items", json={"nome": "Dólar Americano", "moeda": moeda})
+    assert resposta.status_code == 201
+    return resposta.json()
+
+
+# -- POST /items -------------------------------------------------------------
+
+def test_criar_item_sucesso(client, monkeypatch):
+    _mockar_cotacao(monkeypatch, valor_compra=5.10, valor_venda=5.12)
+
+    resposta = client.post("/items", json={"nome": "Dólar", "moeda": "usd"})
+
+    assert resposta.status_code == 201
+    corpo = resposta.json()
+    assert corpo["moeda"] == "USD"  # normalizado para maiúsculo
+    assert corpo["ultima_coleta"]["valor_compra"] == 5.10
+
+
+def test_criar_item_moeda_invalida(client, monkeypatch):
+    def levantar(moeda, logger):
+        raise CotacaoIndisponivelError("moeda nao encontrada na PTAX")
+
+    monkeypatch.setattr(itens_router, "buscar_cotacao_atual", levantar)
+
+    resposta = client.post("/items", json={"nome": "Inexistente", "moeda": "zzz"})
+
+    assert resposta.status_code == 400
+
+
+def test_criar_item_fonte_fora_do_ar(client, monkeypatch):
+    def falhar(moeda, logger):
+        raise RuntimeError("PTAX indisponivel")
+
+    monkeypatch.setattr(itens_router, "buscar_cotacao_atual", falhar)
+
+    resposta = client.post("/items", json={"nome": "Euro", "moeda": "eur"})
+
+    assert resposta.status_code == 502
+
+
+def test_criar_item_payload_invalido(client):
+    resposta = client.post("/items", json={"nome": "", "moeda": "US"})
+
+    assert resposta.status_code == 400
+
+
+# -- GET /items ---------------------------------------------------------------
+
+def test_listar_itens_vazio(client):
+    resposta = client.get("/items")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == []
+
+
+def test_listar_itens_com_ultima_coleta(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)
+
+    resposta = client.get("/items")
+
+    assert resposta.status_code == 200
+    itens = resposta.json()
+    assert len(itens) == 1
+    assert itens[0]["id"] == item["id"]
+    assert itens[0]["ultima_coleta"] is not None
+
+
+# -- GET /items/{id}/latest ----------------------------------------------------
+
+def test_latest_item_inexistente(client):
+    resposta = client.get("/items/999/latest")
+
+    assert resposta.status_code == 404
+
+
+def test_latest_com_coleta(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)
+
+    resposta = client.get(f"/items/{item['id']}/latest")
+
+    assert resposta.status_code == 200
+    assert resposta.json()["item_id"] == item["id"]
+
+
+# -- GET /items/{id}/history ----------------------------------------------------
+
+def test_history_item_inexistente(client):
+    resposta = client.get("/items/999/history")
+
+    assert resposta.status_code == 404
+
+
+def test_history_com_coleta(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)
+
+    resposta = client.get(f"/items/{item['id']}/history")
+
+    assert resposta.status_code == 200
+    assert len(resposta.json()) == 1
+
+
+# -- POST /items/{id}/collect ----------------------------------------------------
+
+def test_collect_sucesso(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)
+    _mockar_cotacao(monkeypatch, valor_compra=5.20, valor_venda=5.22, data_cotacao=date(2026, 9, 10))
+
+    resposta = client.post(f"/items/{item['id']}/collect")
+
+    assert resposta.status_code == 201
+    assert resposta.json()["valor_compra"] == 5.20
+
+
+def test_collect_falha_da_fonte(client, monkeypatch):
+    item = _criar_item(client, monkeypatch)
+
+    def falhar(moeda, logger):
+        raise RuntimeError("PTAX fora do ar")
+
+    monkeypatch.setattr(itens_router, "buscar_cotacao_atual", falhar)
+
+    resposta = client.post(f"/items/{item['id']}/collect")
+
+    assert resposta.status_code == 502
+
+
+def test_collect_item_inexistente(client):
+    resposta = client.post("/items/999/collect")
+
+    assert resposta.status_code == 404
+
+
+# -- GET /cotacoes (consulta livre) ----------------------------------------------
+
+def test_consulta_livre_sucesso(client, monkeypatch):
+    boletins = [
+        {
+            "tipoBoletim": "Fechamento",
+            "dataHoraCotacao": "2026-09-09 13:00:00.0",
+            "cotacaoCompra": 5.10,
+            "cotacaoVenda": 5.12,
+        }
+    ]
+    monkeypatch.setattr(
+        cotacoes_router, "buscar_boletins", lambda moeda, di, df, logger: boletins
+    )
+
+    resposta = client.get(
+        "/cotacoes",
+        params={"moeda": "EUR", "data_inicio": "2026-09-01", "data_fim": "2026-09-10"},
+    )
+
+    assert resposta.status_code == 200
+    assert len(resposta.json()) == 1
+    assert resposta.json()[0]["valor_compra"] == 5.10
+
+
+def test_consulta_livre_periodo_sem_boletim(client, monkeypatch):
+    monkeypatch.setattr(
+        cotacoes_router, "buscar_boletins", lambda moeda, di, df, logger: []
+    )
+
+    resposta = client.get(
+        "/cotacoes",
+        params={"moeda": "EUR", "data_inicio": "2026-09-01", "data_fim": "2026-09-10"},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json() == []
+
+
+def test_consulta_livre_periodo_invertido(client):
+    resposta = client.get(
+        "/cotacoes",
+        params={"moeda": "EUR", "data_inicio": "2026-09-10", "data_fim": "2026-09-01"},
+    )
+
+    assert resposta.status_code == 400
+
+
+def test_consulta_livre_falha_da_fonte(client, monkeypatch):
+    def falhar(moeda, di, df, logger):
+        raise RuntimeError("PTAX fora do ar")
+
+    monkeypatch.setattr(cotacoes_router, "buscar_boletins", falhar)
+
+    resposta = client.get(
+        "/cotacoes",
+        params={"moeda": "EUR", "data_inicio": "2026-09-01", "data_fim": "2026-09-10"},
+    )
+
+    assert resposta.status_code == 502

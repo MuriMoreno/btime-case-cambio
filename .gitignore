@@ -11,6 +11,12 @@ logs/*.log
 evidencias/*.png
 evidencias/*.txt
 
+# Backend: banco SQLite gerado em runtime (dados/monitor.db).
+dados/*.db
+
+# Testes
+.pytest_cache/
+
 # IDE
 .vscode/
 .idea/

@@ -8,3 +8,11 @@ selenium>=4.15.0
 
 # Requisicoes HTTP para a API PTAX do Banco Central.
 requests>=2.31.0
+
+# Backend (API do monitor de cotacoes).
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+sqlalchemy>=2.0.0
+apscheduler>=3.10.0
+httpx>=0.27.0   # necessario pro TestClient do FastAPI (usado nos testes)
+pytest>=8.0.0

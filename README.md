@@ -17,6 +17,7 @@ O robô sempre consulta o **mês civil anterior** ao da execução (rodando em q
 - [Tratamento de erros e resiliência](#tratamento-de-erros-e-resiliência)
 - [Detalhes técnicos do scraping](#detalhes-técnicos-do-scraping)
 - [Manutenção dos seletores (XPath)](#manutenção-dos-seletores-xpath)
+- [Backend API — Monitor de itens](#backend-api--monitor-de-itens)
 
 ## Como funciona
 
@@ -188,3 +189,88 @@ A tabela de resultado também varia conforme a moeda: para o dólar ela traz qua
 Todos os seletores do site ficam centralizados em `src/coletores/xpaths_bcb.py`. Quando o site do BCB mudar de layout, a correção é feita **nesse único arquivo**, sem tocar na lógica do coletor.
 
 Cada elemento traz o XPath, uma descrição e o caminho de uma **imagem de documentação** (em `docs/xpath_imagens/`) com a área do elemento destacada. Essas imagens são documentação estática — ajudam o desenvolvedor de sustentação a identificar visualmente cada elemento na tela. Para adicioná-las: tire o print, destaque o elemento e salve na pasta com o nome referenciado no catálogo.
+
+## Backend API — Monitor de itens
+
+Além dos dois scripts de coleta em lote (CSV), o projeto tem um **backend
+FastAPI** que monitora itens (moedas) ao longo do tempo: cadastro,
+coleta automática periódica, coleta manual sob demanda, histórico para
+gráfico e uma consulta livre por período. É a base pensada para ser
+consumida por um frontend depois (hospedado no Lovable).
+
+### Decisões técnicas e por quê
+
+- **Só a API PTAX, sem scraping.** O backend reaproveita a mesma API oficial
+  do BCB que os scripts de CSV já usam — o scraping (Selenium) resolve o
+  mesmo dado de um jeito mais frágil e mais lento, sem necessidade aqui.
+- **Item = qualquer moeda aceita pela PTAX**, não só USD/EUR/GBP. Como há
+  uma única fonte de dados (a PTAX), o item guarda só o código da moeda;
+  não há uma camada de "tipos de fonte plugáveis" porque o projeto não
+  precisa disso agora — adicionar isso sem uma segunda fonte real seria
+  complexidade especulativa.
+- **SQLite.** Sem servidor externo, roda numa máquina limpa sem preparação
+  manual (mesmo princípio dos scripts de CSV) — o arquivo fica em
+  `dados/monitor.db`, criado sozinho no primeiro start.
+- **Cadastro de item já faz a primeira coleta.** `POST /items` usa a mesma
+  chamada tanto para validar que a moeda existe na PTAX quanto para gravar
+  a primeira leitura — evita duas idas à API para o mesmo propósito.
+- **Mapeamento de erros:** `404` quando o item não existe; `400` quando o
+  payload é inválido ou (só na criação) a moeda não existe na PTAX; `502`
+  quando a PTAX está fora do ar ou não responde a tempo (a coleta falhou,
+  não o pedido do usuário). Nenhuma exceção do Python chega crua ao
+  cliente — há um handler global que converte qualquer erro não previsto
+  em `500` com mensagem genérica, registrando o detalhe no log.
+- **Consulta livre (`GET /cotacoes`).** Além do agendador e da coleta
+  manual por item, dá pra consultar qualquer moeda + período direto na
+  PTAX sem precisar cadastrar nada antes — pensado pra uma tela
+  interativa do frontend onde a pessoa escolhe moeda e intervalo de datas.
+
+### Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/items` | Cadastra um item (moeda) e já grava a primeira coleta |
+| GET | `/items` | Lista os itens, cada um com a última coleta embutida |
+| GET | `/items/{id}/latest` | Última cotação coletada do item |
+| GET | `/items/{id}/history` | Série histórica de coletas do item (gráfico) |
+| POST | `/items/{id}/collect` | Força uma coleta manual imediata |
+| GET | `/cotacoes?moeda=&data_inicio=&data_fim=` | Consulta livre na PTAX, sem item cadastrado |
+
+### Agendamento
+
+Um job em background (APScheduler) roda a cada
+`config.SCHEDULER_INTERVALO_MINUTOS` (padrão: 10 minutos) e coleta a
+cotação mais recente de todos os itens cadastrados, sem precisar do
+endpoint manual. Falha num item não interrompe os demais.
+
+### Como rodar
+
+```bash
+pip install -r requirements.txt
+python run_backend.py
+# ou: uvicorn src.api.main:app --reload
+```
+
+Depois, abrir **http://127.0.0.1:8000/docs** (Swagger).
+
+### Como testar
+
+```bash
+pytest -v
+```
+
+Os testes usam um banco SQLite temporário isolado e mockam a chamada à
+PTAX (`monkeypatch`) — não fazem requisição de rede nem tocam no banco de
+desenvolvimento (`dados/monitor.db`).
+
+### O que faria diferente com mais tempo
+
+- `GET /items` faz uma query por item para achar a última coleta (N+1) —
+  aceitável no volume de um projeto de ambientação, mas viraria uma query
+  única (subquery/window function) num cenário com muitos itens.
+- Endpoint de alertas (`POST /items/{id}/alerts`) e Dockerfile/docker-compose
+  ficaram fora desta rodada — o desafio marca os dois como bônus.
+- Paginação em `GET /items/{id}/history` para itens com histórico muito
+  longo.
+- Migrations (Alembic) em vez de `create_all()`, se o schema evoluir depois
+  do primeiro deploy.

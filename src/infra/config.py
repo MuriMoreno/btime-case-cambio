@@ -22,10 +22,11 @@ RAIZ_PROJETO = Path(__file__).resolve().parent.parent.parent
 PASTA_LOGS = RAIZ_PROJETO / "logs"
 PASTA_EVIDENCIAS = RAIZ_PROJETO / "evidencias"
 PASTA_SAIDA_CSV = RAIZ_PROJETO / "saida_csv"
+PASTA_DADOS = RAIZ_PROJETO / "dados"
 
 # Pastas que o robô garante existir no arranque. Se não existirem, cria;
 # se existirem, mantém. (ver infra/ambiente.py)
-PASTAS_OBRIGATORIAS = [PASTA_LOGS, PASTA_EVIDENCIAS, PASTA_SAIDA_CSV]
+PASTAS_OBRIGATORIAS = [PASTA_LOGS, PASTA_EVIDENCIAS, PASTA_SAIDA_CSV, PASTA_DADOS]
 
 # ---------------------------------------------------------------------------
 # Nomes dos arquivos de log (os três níveis).
@@ -92,3 +93,22 @@ MOEDA_LABEL_SITE = {
 SITE_BCB_URL = (
     "https://www.bcb.gov.br/estabilidadefinanceira/historicocotacoes"
 )
+
+# ---------------------------------------------------------------------------
+# Backend (API/FastAPI) - monitor de itens.
+# ---------------------------------------------------------------------------
+# Banco SQLite: simples, sem servico externo, consistente com o resto do
+# projeto (roda numa maquina limpa sem preparacao manual).
+CAMINHO_BANCO_DADOS = PASTA_DADOS / "monitor.db"
+DATABASE_URL = f"sqlite:///{CAMINHO_BANCO_DADOS}"
+
+# Intervalo da coleta automatica (agendador).
+SCHEDULER_INTERVALO_MINUTOS = 10
+
+# Janela de dias usada para achar "a cotacao mais recente" de uma moeda
+# (cobre fins de semana/feriados sem boletim publicado).
+JANELA_DIAS_COTACAO_ATUAL = 10
+
+# Limite de dias aceito na consulta livre (GET /cotacoes), para nao deixar
+# a requisicao varrer um intervalo enorme na PTAX de uma vez.
+JANELA_MAXIMA_CONSULTA_DIAS = 90
