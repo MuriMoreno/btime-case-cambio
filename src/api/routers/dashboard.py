@@ -6,8 +6,18 @@ resumo rápido (itens monitorados, quantos com alerta ativo hoje, conversões
 já feitas); e o par de moedas mais convertido pelo usuário. Tudo derivado da
 mesma PTAX e do mesmo banco que o resto do sistema já usa - nenhum dado
 novo é coletado aqui.
+
+/ranking-variacao e /mercado consultam o mesmo recorte de moedas (e, no
+caso comum, o mesmo período) - por isso os fechamentos de cada moeda
+passam por um cache curto em memória (_CACHE_FECHAMENTOS): a segunda tela
+a carregar não bate de novo na PTAX pra moeda que a primeira já buscou.
+Além disso, as chamadas de uma mesma leva são feitas em paralelo (a espera
+de rede é o que demora, não o processamento), então o tempo de carregamento
+fica perto do da chamada mais lenta, não da soma de todas.
 """
 
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
@@ -29,6 +39,13 @@ _DIAS_SEMANA_PT = [
     "Sexta-feira", "Sábado", "Domingo",
 ]
 
+# Cache em memória dos fechamentos por (moeda, data_inicio, data_fim). TTL
+# curto só pra evitar repetir a mesma consulta em segundos - a PTAX publica
+# no máximo 1 boletim de fechamento por dia, então isso nunca serve dado
+# desatualizado dentro da janela de validade.
+_CACHE_FECHAMENTOS = {}
+_CACHE_TTL_SEGUNDOS = 15 * 60
+
 
 def _fechamentos_ordenados(moeda, data_inicio, data_fim):
     boletins = buscar_boletins(moeda, data_inicio, data_fim, logger_api)
@@ -37,6 +54,43 @@ def _fechamentos_ordenados(moeda, data_inicio, data_fim):
     ]
     fechamentos.sort(key=lambda b: b.get("dataHoraCotacao", ""))
     return fechamentos
+
+
+def _fechamentos_com_cache(moeda, data_inicio, data_fim):
+    chave = (moeda, data_inicio, data_fim)
+    agora = time.monotonic()
+
+    em_cache = _CACHE_FECHAMENTOS.get(chave)
+    if em_cache is not None and (agora - em_cache[0]) < _CACHE_TTL_SEGUNDOS:
+        return em_cache[1]
+
+    fechamentos = _fechamentos_ordenados(moeda, data_inicio, data_fim)
+    _CACHE_FECHAMENTOS[chave] = (agora, fechamentos)
+    return fechamentos
+
+
+def _fechamentos_do_recorte(data_inicio, data_fim):
+    """
+    Fechamentos de todas as moedas de config.MOEDAS_DASHBOARD_RANKING no
+    período, buscados em paralelo (com cache por moeda). Devolve
+    {moeda: fechamentos}, omitindo silenciosamente quem falhar na PTAX -
+    quem chama decide o que fazer com uma moeda ausente.
+    """
+
+    def buscar(moeda):
+        try:
+            return moeda, _fechamentos_com_cache(moeda, data_inicio, data_fim)
+        except RuntimeError as erro:
+            logger_api.erro(f"[Dashboard] Falha ao consultar {moeda}: {erro}")
+            return moeda, None
+
+    resultado = {}
+    with ThreadPoolExecutor(max_workers=len(config.MOEDAS_DASHBOARD_RANKING)) as executor:
+        for moeda, fechamentos in executor.map(buscar, config.MOEDAS_DASHBOARD_RANKING):
+            if fechamentos is not None:
+                resultado[moeda] = fechamentos
+
+    return resultado
 
 
 def _variacoes_diarias(fechamentos):
@@ -71,13 +125,7 @@ def ranking_variacao(dias: int = Query(90, ge=1, le=365)):
     data_inicio = data_fim - timedelta(days=dias)
 
     resultado = []
-    for moeda in config.MOEDAS_DASHBOARD_RANKING:
-        try:
-            fechamentos = _fechamentos_ordenados(moeda, data_inicio, data_fim)
-        except RuntimeError as erro:
-            logger_api.erro(f"[Dashboard] Ranking: falha ao consultar {moeda}: {erro}")
-            continue
-
+    for moeda, fechamentos in _fechamentos_do_recorte(data_inicio, data_fim).items():
         if len(fechamentos) < 2:
             continue
 
@@ -114,13 +162,7 @@ def mercado(dias: int = Query(90, ge=1, le=365)):
     soma_por_dia = [0.0] * 7
     qtd_por_dia = [0] * 7
 
-    for moeda in config.MOEDAS_DASHBOARD_RANKING:
-        try:
-            fechamentos = _fechamentos_ordenados(moeda, data_inicio, data_fim)
-        except RuntimeError as erro:
-            logger_api.erro(f"[Dashboard] Mercado: falha ao consultar {moeda}: {erro}")
-            continue
-
+    for moeda, fechamentos in _fechamentos_do_recorte(data_inicio, data_fim).items():
         variacoes = _variacoes_diarias(fechamentos)
         if not variacoes:
             continue

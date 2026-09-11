@@ -14,6 +14,19 @@ from src.coletores.coletor_item import CotacaoAtual
 from src.infra import config
 
 
+@pytest.fixture(autouse=True)
+def _limpar_cache_de_fechamentos():
+    """
+    O cache de _fechamentos_com_cache é um dict em memória no módulo do
+    router - sem limpar entre os testes, um teste reaproveitaria o
+    boletim falso monkeypatchado por outro (mesma moeda + mesmo período
+    padrão de 90 dias => mesma chave de cache).
+    """
+    dashboard_router._CACHE_FECHAMENTOS.clear()
+    yield
+    dashboard_router._CACHE_FECHAMENTOS.clear()
+
+
 def _boletim(data_iso, cotacao_compra):
     return {
         "tipoBoletim": "Fechamento",
