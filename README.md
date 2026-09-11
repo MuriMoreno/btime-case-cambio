@@ -1,6 +1,6 @@
 # btime-case-cambio
 
-Monitor de cotações de câmbio (PTAX do Banco Central) com backend FastAPI, frontend próprio e autenticação real — cadastro de moedas, coleta automática periódica, alerta de variação brusca, consulta livre por período, e uma tela de login. Nasceu como um case técnico de RPA (coleta em CSV via scraping e via API) e foi evoluído, num projeto de ambientação na btime, para o sistema completo descrito aqui.
+Monitor de cotações de câmbio (PTAX do Banco Central) com backend FastAPI, frontend próprio e autenticação real — cadastro de moedas, coleta automática periódica, alerta de variação brusca, consulta livre por período, comparação e conversão entre moedas, um dashboard com indicadores de mercado, e uma tela de login. Nasceu como um case técnico de RPA (coleta em CSV via scraping e via API) e foi evoluído, num projeto de ambientação na btime, para o sistema completo descrito aqui.
 
 ## Sumário
 
@@ -23,7 +23,7 @@ Monitor de cotações de câmbio (PTAX do Banco Central) com backend FastAPI, fr
 
 O repositório tem duas partes:
 
-1. **O sistema principal** — backend (FastAPI + SQLite) e frontend (HTML/CSS/JS puro) que monitoram moedas ao longo do tempo: cadastro de itens, coleta automática a cada N minutos, coleta manual, histórico com gráfico, consulta livre por período, alerta visual de variação brusca, e login com usuário/senha reais. É o que roda no dia a dia — ver [Como rodar o backend](#como-rodar-o-backend) e [Como rodar o frontend](#como-rodar-o-frontend).
+1. **O sistema principal** — backend (FastAPI + SQLite) e frontend (HTML/CSS/JS puro) que monitoram moedas ao longo do tempo: cadastro de itens, coleta automática a cada N minutos, coleta manual, histórico com gráfico, consulta livre por período, comparação e conversão entre moedas, um dashboard com indicadores de mercado, alerta visual de variação brusca, e login com usuário/senha reais. É o que roda no dia a dia — ver [Como rodar o backend](#como-rodar-o-backend) e [Como rodar o frontend](#como-rodar-o-frontend).
 2. **Os scripts originais de coleta em CSV** (`run_scraping.py` e `run_api.py`) — o case de RPA que deu origem ao projeto: duas técnicas independentes (Selenium e API) que coletam o mês anterior de USD/EUR/GBP e gravam em CSV. Continuam funcionando exatamente como antes; a camada que consultam (`src/coletores/ptax_cliente.py`) é a mesma que o backend usa. Detalhes em [Os scripts originais de coleta em CSV](#os-scripts-originais-de-coleta-em-csv).
 
 ## Arquitetura
@@ -32,11 +32,12 @@ O repositório tem duas partes:
                  Frontend (HTML/CSS/JS, frontend/)
                               │  fetch + Authorization: Bearer <JWT>
                               ▼
-   ┌──────────────────────────────────────────────────────────────┐
-   │                      API (FastAPI, src/api/)                  │
-   │  main.py · routers: auth · itens · cotacoes · moedas · conversoes │
-   │  schemas (Pydantic) · dependencias (get_db, obter_usuario_atual)│
-   └──────────┬───────────────────────────────────────┬─────────────┘
+   ┌────────────────────────────────────────────────────────────────────┐
+   │                        API (FastAPI, src/api/)                     │
+   │  main.py · routers: auth · itens · cotacoes · moedas · conversoes ·│
+   │  agendador · dashboard                                             │
+   │  schemas (Pydantic) · dependencias (get_db, obter_usuario_atual)   │
+   └──────────┬───────────────────────────────────────┬─────────────────┘
               │                                        │
               ▼                                        ▼
    ┌────────────────────┐                  ┌───────────────────────┐
@@ -74,7 +75,7 @@ O repositório tem duas partes:
 - **`src/persistencia/`** — modelos SQLAlchemy (`Item`, `Coleta`, `Usuario`) e o repositório (única camada que faz query/gravação no banco).
 - **`src/auth/`** — hash de senha (bcrypt) e emissão/verificação de JWT. Não sabe nada de HTTP.
 - **`src/agendador/`** — o job do APScheduler que coleta todos os itens periodicamente.
-- **`src/api/`** — a camada FastAPI: `main.py` monta a app e os handlers globais de erro; `routers/` tem uma rota por recurso (`auth`, `itens`, `cotacoes`, `moedas`); `dependencias.py` tem o que é injetado nas rotas (sessão de banco, usuário autenticado); `schemas.py` define os formatos de entrada/saída.
+- **`src/api/`** — a camada FastAPI: `main.py` monta a app e os handlers globais de erro; `routers/` tem uma rota por recurso (`auth`, `itens`, `cotacoes`, `moedas`, `conversoes`, `agendador`, `dashboard`); `dependencias.py` tem o que é injetado nas rotas (sessão de banco, usuário autenticado); `schemas.py` define os formatos de entrada/saída.
 - **`src/infra/`** — suporte comum a tudo: configuração central (`config.py`), logging de três níveis, preparação de ambiente, política de retry, captura de evidências e o catálogo de XPaths do scraping.
 - **`frontend/`** — a interface (ver [Como rodar o frontend](#como-rodar-o-frontend)).
 
@@ -90,8 +91,9 @@ btime-case-cambio/
 ├── requirements.txt
 ├── README.md
 ├── frontend/
-│   ├── index.html            # shell da SPA (login, itens, detalhe, consulta livre)
-│   ├── app.js                # roteamento, cliente da API, gráfico SVG
+│   ├── index.html            # shell da SPA (login, dashboard, itens, detalhe,
+│   │                          #   consulta livre, comparar moedas, conversão)
+│   ├── app.js                # roteamento, cliente da API, gráficos SVG, seletor de data
 │   ├── styles.css             # design system btime + estilos do app
 │   └── config.js              # URL base da API
 ├── src/
@@ -104,7 +106,9 @@ btime-case-cambio/
 │   │       ├── itens.py         # /items (cadastro, listagem, coleta...)
 │   │       ├── cotacoes.py      # GET /cotacoes (consulta livre)
 │   │       ├── moedas.py        # GET /moedas
-│   │       └── conversoes.py    # POST/GET /conversoes (conversão + histórico)
+│   │       ├── conversoes.py    # POST/GET /conversoes (conversão + histórico)
+│   │       ├── agendador.py     # GET /agendador/proxima-coleta (relógio do menu lateral)
+│   │       └── dashboard.py     # GET /dashboard/* (resumo, ranking, mercado, conversões)
 │   ├── auth/
 │   │   └── seguranca.py        # hash de senha (bcrypt) + JWT
 │   ├── agendador/
@@ -133,7 +137,8 @@ btime-case-cambio/
 │       └── evidencia.py          # screenshot / resposta crua no erro
 ├── tests/
 │   ├── conftest.py               # fixtures (banco isolado, bypass de auth)
-│   ├── test_api_itens.py         # itens, cotações, moedas
+│   ├── test_api_itens.py         # itens, cotações, moedas, conversões, agendador
+│   ├── test_api_dashboard.py     # resumo, ranking, mercado, conversões-resumo
 │   └── test_auth.py              # login e proteção por token
 ├── dados/                        # gerado em runtime (monitor.db)
 ├── logs/                         # gerado em runtime
@@ -190,13 +195,14 @@ python run_frontend.py
 
 Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html` direto como arquivo (`file://`) não funciona — o navegador bloqueia o `fetch` por CORS nesse esquema; por isso existe o `run_frontend.py`. Se o backend rodar em outra porta/host, ajustar `API_BASE_URL` em `frontend/config.js`.
 
-**Telas** (menu lateral, com a conta logada — e-mail decodificado do próprio JWT — e "Sair" no rodapé):
+**Telas** (menu lateral com ícones, a conta logada — e-mail decodificado do próprio JWT —, um relógio de contagem regressiva até a próxima coleta automática, e "Sair" no rodapé; em telas estreitas vira um menu retrátil):
 
 - **Login** (`#/login`) — e-mail + senha reais contra `/auth/login`. Sem cadastro na tela (ver [decisões](#decisões-técnicas-e-por-quê)) — é a porta de entrada obrigatória: sem token válido, o roteador manda qualquer outra rota de volta pra cá. O token JWT fica em `localStorage`; qualquer resposta `401` limpa o token e volta pro login automaticamente, e o botão "Sair" faz o mesmo na hora.
+- **Dashboard** (`#/dashboard`) — primeira tela após o login (e primeiro item do menu). Cards de resumo (itens monitorados, quantos com alerta de variação hoje, conversões feitas); ranking das maiores altas e baixas dos últimos 3 meses e a maior volatilidade (maior salto diário) num recorte de moedas relevantes (`config.MOEDAS_DASHBOARD_RANKING`); variação média por dia da semana; o par de moedas mais convertido pelo usuário; e a evolução (normalizada em %) de todas as moedas que ele já monitora no mês corrente.
 - **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a última cotação e, se a variação passou do limiar, um selo ▲/▼ de alerta. Botão "+ Novo item" abre um modal de cadastro, com um seletor de moeda populado via `GET /moedas` (qualquer moeda aceita pela PTAX) — sugere o nome do item automaticamente ao escolher a moeda.
 - **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta (com o mesmo selo de alerta ao lado do nome), botão "Coletar agora", e abas Gráfico/Tabela de **monitoramento em tempo real**: em vez de só reaproveitar o log de coletas do agendador, busca ao vivo no `GET /cotacoes` o mês corrente inteiro (do dia 1 até hoje); nos 3 primeiros dias do mês, estende pra trás até o início do mês anterior, pra nunca mostrar um gráfico praticamente vazio. O gráfico é SVG desenhado à mão (sem biblioteca externa): duas séries (compra/venda), crosshair com tooltip no hover, marcador de fim de linha e grade horizontal discreta.
-- **Consulta livre** (`#/consulta`) — seletor de moeda (só as já cadastradas, vindo de `GET /items`) + período, batendo direto no `GET /cotacoes` ao vivo.
-- **Comparar moedas** (`#/comparar`) — escolhe até 6 moedas quaisquer da PTAX (não só as cadastradas) + período, e compara num único gráfico. Como as escalas são muito diferentes entre si (ex: Iene ~0,03 vs Libra ~6,5), o gráfico normaliza cada série em % de variação desde o primeiro ponto do período, em vez de plotar os valores absolutos; a tabela ao lado traz os valores reais (compra/venda atuais e variação % no período).
+- **Consulta livre** (`#/consulta`) — seletor de moeda (qualquer uma da PTAX, vindo de `GET /moedas`) + período, batendo direto no `GET /cotacoes` ao vivo. Um período maior que `config.JANELA_MAXIMA_CONSULTA_DIAS` é barrado no próprio frontend com um aviso informativo (não um erro), antes de chamar a API. A última consulta feita (moeda, período e resultado) fica salva em `localStorage` e reaparece sozinha ao voltar nessa tela — inclusive depois de recarregar a página.
+- **Comparar moedas** (`#/comparar`) — escolhe até 6 moedas quaisquer da PTAX (não só as cadastradas) + período (mesmo aviso de janela máxima da Consulta livre), e compara num único gráfico. Como as escalas são muito diferentes entre si (ex: Iene ~0,03 vs Libra ~6,5), o gráfico normaliza cada série em % de variação desde o primeiro ponto do período, em vez de plotar os valores absolutos; a tabela ao lado traz os valores reais (compra/venda atuais e variação % no período).
 - **Conversão** (`#/conversao`) — converte um valor entre duas moedas quaisquer (ou BRL) pela cotação PTAX mais recente, batendo em `POST /conversoes`. Cada conversão feita é gravada e aparece no histórico da tela (`GET /conversoes`) — é só um cálculo registrado, não uma transação financeira real.
 
 ## Endpoints da API
@@ -213,6 +219,11 @@ Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html` direto como
 | GET | `/moedas` | Lista as moedas que a PTAX aceita (código + nome) | Sim |
 | POST | `/conversoes` | Converte um valor entre duas moedas (ou BRL) pela cotação mais recente e grava no histórico | Sim |
 | GET | `/conversoes` | Histórico de conversões do usuário logado | Sim |
+| GET | `/agendador/proxima-coleta` | Segundos até a próxima coleta automática (relógio do menu lateral) | Sim |
+| GET | `/dashboard/resumo` | Total de itens, quantos com alerta ativo hoje e total de conversões feitas | Sim |
+| GET | `/dashboard/ranking-variacao?dias=` | Maiores altas/baixas num recorte de moedas relevantes, do início ao fim do período (padrão: 90 dias) | Sim |
+| GET | `/dashboard/mercado?dias=` | Volatilidade (maior variação diária de cada moeda) e variação média por dia da semana | Sim |
+| GET | `/dashboard/conversoes-resumo` | Pares de moeda mais convertidos pelo usuário, com quantidade e percentual | Sim |
 
 ## Decisões técnicas e por quê
 
@@ -221,12 +232,15 @@ Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html` direto como
 - **Um item por moeda.** `POST /items` não cria um segundo item para uma moeda já cadastrada — devolve `409` com o item existente e quantos segundos faltam para a próxima coleta automática (`segundos_ate_proxima_coleta`, calculado a partir do `next_run_time` do job do agendador). O frontend usa isso para avisar o usuário e oferecer "coletar agora mesmo assim" no item já existente, em vez de duplicar.
 - **Cadastro de item já faz a primeira coleta.** `POST /items` usa a mesma chamada tanto para validar que a moeda existe na PTAX quanto para gravar a primeira leitura — evita duas idas à API para o mesmo propósito.
 - **SQLite.** Sem servidor externo, roda numa máquina limpa sem preparação manual — o arquivo fica em `dados/monitor.db`, criado sozinho no primeiro start. Não reflete uma preferência de arquitetura: nos projetos reais da btime o banco é Supabase, mas provisionar isso custaria dinheiro por um projeto de ambientação, então o desenho (tabelas, relações, hash de senha, JWT) foi feito para ser o mesmo que valeria com Supabase.
-- **Autenticação real, não um login fake.** Tabela `usuarios` de verdade (senha com hash bcrypt, nunca texto puro) + JWT — a mesma estrutura de um sistema multiusuário, mesmo que só exista uma conta cadastrada hoje. Todas as rotas de `/items`, `/cotacoes` e `/moedas` exigem `Authorization: Bearer <token>`; só `/auth/login` fica aberto (sem token ainda não tem como autenticar).
+- **Autenticação real, não um login fake.** Tabela `usuarios` de verdade (senha com hash bcrypt, nunca texto puro) + JWT — a mesma estrutura de um sistema multiusuário, mesmo que só exista uma conta cadastrada hoje. Todas as rotas de negócio (`/items`, `/cotacoes`, `/moedas`, `/conversoes`, `/agendador`, `/dashboard`) exigem `Authorization: Bearer <token>`; só `/auth/login` fica aberto (sem token ainda não tem como autenticar).
 - **Sem cadastro público.** Uma API que vai pro cliente não deveria ter uma tela de "criar conta" livre — conceder acesso é uma ação administrativa. Contas são criadas com `python criar_usuario.py <email> <senha>`, rodado localmente por quem administra o sistema (o equivalente, aqui, a criar o usuário direto no painel do Supabase num projeto real).
 - **Alerta de variação brusca.** Em vez do endpoint de regra configurável que o desafio original sugere como bônus (`POST /items/{id}/alerts`), cada item cadastrado já vem com `variacao_percentual` calculada (compra: coleta mais recente vs. a anterior) em `GET /items`. O frontend acende um selo quando o módulo passa de `config.ALERTA_VARIACAO_PERCENTUAL` (padrão: 2%) — limiar pensado pra filtrar ruído normal do dia a dia sem deixar passar um movimento fora do comum, e em percentual (não R$) porque um valor fixo não faz sentido comparando moedas de escalas tão diferentes (Iene vs. Libra, por exemplo).
-- **Consulta livre (`GET /cotacoes`).** Além do agendador e da coleta manual por item, dá pra consultar qualquer moeda + período direto na PTAX sem precisar de um item já ter sido coletado nesse intervalo — pensado pra uma tela interativa onde a pessoa escolhe moeda e datas. No frontend, o seletor de moeda dessa tela só lista as já cadastradas (a API em si aceita qualquer código).
+- **Consulta livre (`GET /cotacoes`).** Além do agendador e da coleta manual por item, dá pra consultar qualquer moeda + período direto na PTAX sem precisar de um item já ter sido coletado nesse intervalo — pensado pra uma tela interativa onde a pessoa escolhe moeda e datas. O seletor de moeda do frontend lista todas as moedas da PTAX (`GET /moedas`), não só as já cadastradas como item.
 - **Mapeamento de erros:** `404` quando o item não existe; `400` quando o payload é inválido ou (só na criação) a moeda não existe na PTAX; `409` quando a moeda já está cadastrada; `502` quando a PTAX está fora do ar ou não responde a tempo (a coleta falhou, não o pedido do usuário); `401` quando falta token válido. Nenhuma exceção do Python chega crua ao cliente — um handler global converte qualquer erro não previsto em `500` com mensagem genérica, registrando o detalhe no log.
 - **Conversão pela taxa média (compra+venda)/2.** `POST /conversoes` não escolhe a ponta de compra ou de venda do banco — usaria uma direção arbitrária num conversor genérico. Moedas estrangeiras sempre passam pelo Real como ponte (`valor_origem_em_reais / taxa_destino`); BRL entra como taxa fixa 1.0, sem chamar a PTAX (que só lista moedas estrangeiras).
+- **Dashboard com um recorte de moedas, não a lista inteira da PTAX.** `GET /dashboard/ranking-variacao` e `GET /dashboard/mercado` fazem uma chamada à PTAX por moeda — rodar isso pras ~200 moedas da PTAX deixaria o dashboard lento e misturaria moeda exótica/pouco negociada (com histórico incompleto) no meio do resultado. `config.MOEDAS_DASHBOARD_RANKING` fixa um recorte de ~15 moedas relevantes; uma moeda que falhar na PTAX (ou não tiver boletim suficiente) é simplesmente omitida do resultado, sem derrubar o dashboard inteiro.
+- **Limite de período avisado no frontend antes de chamar a API.** `config.JANELA_MAXIMA_CONSULTA_DIAS` é validado no backend (`400`) e também checado no frontend antes do `fetch`, em Consulta livre e Comparar moedas — evita a viagem à API só pra devolver um erro previsível, e a mensagem aparece como aviso informativo, não como "Erro".
+- **Seletor de data próprio, não o `<input type="date">` nativo.** O calendário nativo do navegador não dá pra estilizar (some do tema escuro do design system). O componente em `app.js` guarda o valor num `<input type="hidden">` com o mesmo id de sempre — o resto do código continua só lendo `.value` — e desenha um calendário próprio (mês, grade de dias, dia atual/selecionado) com os tokens `--bt-*`.
 - **Frontend estático, sem build.** HTML/CSS/JS puro em `frontend/`, seguindo o design system btime (tokens `--bt-*` em `styles.css`). Publicação futura no Lovable é só hospedagem — por isso não há passo de build nem framework, e a URL do backend fica num único lugar (`frontend/config.js`).
 - **Gráfico sem biblioteca externa.** O histórico é desenhado como SVG à mão (duas séries, crosshair, tooltip no hover) em vez de importar uma lib de gráficos via CDN — mantém o frontend sem dependência externa nenhuma.
 - **Coletores e domínio do fluxo legado, intocados.** `src/dominio/` normaliza os valores pra string com vírgula e 4 casas (pensado pro CSV abrir certo no Excel brasileiro); o backend guarda `float` puro (o consumidor é JSON/gráfico, não uma planilha) — por isso o backend não reaproveita o modelo `Cotacao`, só o cliente HTTP da PTAX (`ptax_cliente.py`).
@@ -256,7 +270,7 @@ pytest -v
 
 Cada teste ganha um banco SQLite temporário isolado (não toca em `dados/monitor.db`) e mocka a chamada à PTAX — não faz requisição de rede. Dois grupos de fixtures em `tests/conftest.py`:
 
-- `client` — autenticação "bypassada" (usuário fake injetado via `dependency_overrides`), usada pelos testes de regra de negócio (`test_api_itens.py`), que não são sobre autenticação em si.
+- `client` — autenticação "bypassada" (usuário fake injetado via `dependency_overrides`), usada pelos testes de regra de negócio (`test_api_itens.py`, `test_api_dashboard.py`), que não são sobre autenticação em si.
 - `client_real_auth` / `criar_usuario_teste` — sem bypass, usadas por `test_auth.py` pra exercitar o fluxo real de login e a proteção das rotas por token.
 
 ## O que faria diferente com mais tempo
@@ -267,6 +281,7 @@ Cada teste ganha um banco SQLite temporário isolado (não toca em `dados/monito
 - Endpoint de alertas configuráveis por regra (`POST /items/{id}/alerts`, o bônus original do desafio) e Dockerfile/docker-compose ficaram fora do escopo até agora.
 - Paginação em `GET /items/{id}/history` para itens com histórico muito longo.
 - Migrations (Alembic) em vez de `create_all()`, se o schema evoluir depois do primeiro deploy real (com Supabase, por exemplo).
+- `GET /dashboard/ranking-variacao` e `/mercado` chamam a PTAX uma moeda por vez, em sequência — pra ~15 moedas ainda responde em poucos segundos, mas paralelizar essas chamadas (ex.: `ThreadPoolExecutor`, já que `requests` é síncrono) deixaria o dashboard mais rápido.
 
 ## Os scripts originais de coleta em CSV
 
