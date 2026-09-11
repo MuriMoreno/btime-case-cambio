@@ -15,7 +15,7 @@ from src.infra.ambiente import preparar_ambiente
 from src.persistencia.database import criar_tabelas
 from src.agendador.scheduler import iniciar_agendador, parar_agendador
 from src.api.dependencias import logger_api
-from src.api.routers import itens, cotacoes, moedas, auth
+from src.api.routers import itens, cotacoes, moedas, auth, conversoes, agendador, dashboard
 
 
 @asynccontextmanager
@@ -42,6 +42,9 @@ app.include_router(auth.router)
 app.include_router(itens.router)
 app.include_router(cotacoes.router)
 app.include_router(moedas.router)
+app.include_router(conversoes.router)
+app.include_router(agendador.router)
+app.include_router(dashboard.router)
 
 # Frontend roda numa origem diferente (arquivo estático servido à parte, ou
 # futuramente Lovable) - liberado para qualquer origem por ser um projeto

@@ -483,7 +483,52 @@
    semânticos acima (--bt-*). Prefixo "app-" para nunca colidir com o DS.
    ========================================================================== */
 
-.app-shell { max-width: var(--bt-container); margin: 0 auto; padding: var(--bt-space-6); display: flex; flex-direction: column; gap: var(--bt-space-6); }
+/* Layout: sidebar fixa + conteúdo */
+.app-layout { display: flex; min-height: 100vh; align-items: flex-start; }
+
+.app-sidebar {
+  position: sticky; top: 0; height: 100vh; flex: none; width: 260px;
+  display: flex; flex-direction: column; gap: var(--bt-space-6);
+  padding: var(--bt-space-5) var(--bt-space-3);
+  background: var(--bt-surface); border-right: 1px solid var(--bt-border);
+  z-index: var(--bt-z-nav);
+}
+.app-sidebar__nav { display: flex; flex-direction: column; gap: var(--bt-space-1); }
+.app-sidebar__link { justify-content: flex-start; width: 100%; gap: var(--bt-space-3); }
+.app-navicon { width: 18px; height: 18px; flex: none; }
+.app-sidebar__footer { margin-top: auto; display: flex; flex-direction: column; gap: var(--bt-space-3); padding-top: var(--bt-space-4); border-top: 1px solid var(--bt-border); }
+.app-sidebar__clock { display: flex; flex-direction: column; gap: var(--bt-space-1); padding: 0 var(--bt-space-2); }
+.app-sidebar__account { display: flex; align-items: center; gap: var(--bt-space-3); min-width: 0; padding: 0 var(--bt-space-2); }
+.app-sidebar__account-avatar {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--bt-gradient-brand); color: #fff;
+  font-weight: var(--bt-weight-bold); font-size: var(--bt-text-sm); text-transform: uppercase;
+}
+
+.app-sidebar-toggle {
+  display: none; position: fixed; top: var(--bt-space-4); left: var(--bt-space-4);
+  z-index: var(--bt-z-overlay); width: 44px; height: 44px; border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-raised); border: 1px solid var(--bt-border);
+  flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
+}
+.app-sidebar-toggle span { width: 18px; height: 2px; background: var(--bt-text); border-radius: 2px; }
+.app-sidebar-scrim { display: none; position: fixed; inset: 0; background: var(--bt-overlay-scrim); z-index: var(--bt-z-overlay); }
+
+@media (max-width: 64rem) {
+  .app-sidebar-toggle { display: flex; }
+  .app-sidebar {
+    position: fixed; inset: 0 auto 0 0; transform: translateX(-100%);
+    transition: transform var(--bt-dur-normal) var(--bt-ease-out);
+    box-shadow: var(--bt-shadow-4);
+    /* Acima do scrim (--bt-z-overlay): sem isso, o scrim (inset:0) cobre
+       também a área da sidebar e intercepta os cliques nos links do menu. */
+    z-index: var(--bt-z-modal);
+  }
+  .app-sidebar[data-open="true"] { transform: translateX(0); }
+  .app-sidebar-scrim[data-open="true"] { display: block; }
+}
+
+.app-shell { flex: 1; min-width: 0; max-width: var(--bt-container); margin: 0 auto; padding: var(--bt-space-6); display: flex; flex-direction: column; gap: var(--bt-space-6); }
 
 .app-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--bt-space-4); flex-wrap: wrap; }
 
@@ -515,5 +560,71 @@
 .app-tooltip__value { font-weight: var(--bt-weight-semibold); font-variant-numeric: tabular-nums; }
 
 .app-form-grid { display: grid; gap: var(--bt-space-4); grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; }
+
+/* Seletor de data (substitui o calendário nativo do <input type="date">,
+   que não dá pra estilizar e destoa do tema escuro do design system) */
+.bt-datepicker { position: relative; }
+.bt-datepicker__trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--bt-space-2);
+  cursor: pointer; text-align: left; font-family: inherit;
+}
+.bt-datepicker__trigger:focus-visible {
+  outline: var(--bt-focus-width) solid var(--bt-focus); outline-offset: var(--bt-focus-offset);
+}
+.bt-datepicker__value[data-empty="true"] { color: var(--bt-text-subtle); }
+.bt-datepicker__icon { width: 18px; height: 18px; flex: none; color: var(--bt-text-subtle); }
+
+.bt-datepicker__panel {
+  position: absolute; top: calc(100% + var(--bt-space-2)); left: 0; z-index: var(--bt-z-dropdown);
+  width: 264px; padding: var(--bt-space-4);
+  background: var(--bt-surface-raised); border: 1px solid var(--bt-border);
+  border-radius: var(--bt-radius-md); box-shadow: var(--bt-shadow-3);
+}
+.bt-datepicker__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--bt-space-3); }
+.bt-datepicker__month { font-size: var(--bt-text-sm); font-weight: var(--bt-weight-semibold); color: var(--bt-text); text-transform: capitalize; }
+.bt-datepicker__nav {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--bt-radius-sm);
+  background: transparent; color: var(--bt-text-muted); font-size: var(--bt-text-md);
+  line-height: 1; cursor: pointer;
+}
+.bt-datepicker__nav:hover { background: var(--bt-surface); color: var(--bt-text); }
+.bt-datepicker__weekdays, .bt-datepicker__days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.bt-datepicker__weekdays { margin-bottom: var(--bt-space-1); }
+.bt-datepicker__weekday { font-size: var(--bt-text-2xs); font-weight: var(--bt-weight-semibold); color: var(--bt-text-subtle); padding: var(--bt-space-1) 0; }
+.bt-datepicker__day {
+  border: 1px solid transparent; background: transparent; border-radius: var(--bt-radius-sm); cursor: pointer;
+  height: 32px; font-size: var(--bt-text-xs); color: var(--bt-text); font-family: var(--bt-font-mono);
+  transition: background var(--bt-dur-fast) var(--bt-ease-out);
+}
+.bt-datepicker__day:hover { background: var(--bt-surface); }
+.bt-datepicker__day[data-outside="true"] { color: var(--bt-text-subtle); }
+.bt-datepicker__day[data-today="true"] { border-color: var(--bt-brand-ring); }
+.bt-datepicker__day[data-selected="true"] { background: var(--bt-brand-fill); color: var(--bt-text-on-fill); font-weight: var(--bt-weight-semibold); border-color: transparent; }
+
+.app-bar-row { display: flex; align-items: center; gap: var(--bt-space-3); }
+.app-bar-row__label {
+  flex: 0 0 auto; min-width: 48px;
+  font-family: var(--bt-font-mono); font-size: var(--bt-text-xs);
+  font-weight: var(--bt-weight-semibold); color: var(--bt-text); line-height: var(--bt-lh-snug);
+}
+.app-bar-row__sublabel { display: block; font-size: var(--bt-text-2xs); font-weight: var(--bt-weight-regular); color: var(--bt-text-subtle); }
+.app-bar-row__track { flex: 1 1 auto; min-width: 0; height: 10px; border-radius: var(--bt-radius-full); background: var(--bt-surface-sunken); overflow: hidden; }
+.app-bar-row__fill { height: 100%; border-radius: var(--bt-radius-full); }
+.app-bar-row__fill--alta { background: var(--bt-success-fill); }
+.app-bar-row__fill--baixa { background: var(--bt-danger-fill); }
+.app-bar-row__fill--neutra { background: var(--bt-accent-fill); }
+.app-bar-row__value { flex: 0 0 auto; min-width: 60px; font-family: var(--bt-font-mono); font-size: var(--bt-text-xs); text-align: right; font-variant-numeric: tabular-nums; }
+.app-bar-row__value--alta { color: var(--bt-success); }
+.app-bar-row__value--baixa { color: var(--bt-danger); }
+
+.app-checkbox-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--bt-space-2);
+  max-height: 220px; overflow-y: auto; padding: var(--bt-space-3);
+  border: 1px solid var(--bt-border); border-radius: var(--bt-radius-md); background: var(--bt-surface-sunken);
+}
+.app-checkbox-item { display: flex; align-items: center; gap: var(--bt-space-2); font-size: var(--bt-text-sm); cursor: pointer; padding: var(--bt-space-1) var(--bt-space-2); border-radius: var(--bt-radius-sm); }
+.app-checkbox-item:hover { background: var(--bt-surface-raised); }
+.app-checkbox-item input:disabled + span { color: var(--bt-text-subtle); }
 
 .app-hidden { display: none !important; }

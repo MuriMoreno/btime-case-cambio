@@ -13,6 +13,8 @@ import pytest
 import src.api.routers.itens as itens_router
 import src.api.routers.cotacoes as cotacoes_router
 import src.api.routers.moedas as moedas_router
+import src.api.routers.conversoes as conversoes_router
+import src.api.routers.agendador as agendador_router
 from src.coletores.coletor_item import CotacaoAtual, CotacaoIndisponivelError
 
 
@@ -289,3 +291,116 @@ def test_listar_moedas_falha_da_fonte(client, monkeypatch):
     resposta = client.get("/moedas")
 
     assert resposta.status_code == 502
+
+
+# -- POST/GET /conversoes ------------------------------------------------------
+
+def _mockar_taxa(monkeypatch, valor_compra=5.00, valor_venda=5.10):
+    resultado = CotacaoAtual(
+        data_cotacao=date(2026, 9, 9), valor_compra=valor_compra, valor_venda=valor_venda
+    )
+    monkeypatch.setattr(
+        conversoes_router, "buscar_cotacao_atual", lambda moeda, logger: resultado
+    )
+    return resultado
+
+
+def test_converter_moeda_estrangeira_para_brl(client, monkeypatch):
+    _mockar_taxa(monkeypatch, valor_compra=5.00, valor_venda=5.10)  # média = 5.05
+
+    resposta = client.post(
+        "/conversoes", json={"moeda_origem": "usd", "moeda_destino": "brl", "valor": 100}
+    )
+
+    assert resposta.status_code == 201
+    corpo = resposta.json()
+    assert corpo["moeda_origem"] == "USD"
+    assert corpo["moeda_destino"] == "BRL"
+    assert corpo["valor_destino"] == pytest.approx(505.0)
+    assert corpo["taxa_aplicada"] == pytest.approx(5.05)
+
+
+def test_converter_entre_duas_moedas_estrangeiras(client, monkeypatch):
+    chamadas = {"USD": 5.00, "EUR": 6.00}
+
+    def taxa_por_moeda(moeda, logger):
+        valor = chamadas[moeda]
+        return CotacaoAtual(data_cotacao=date(2026, 9, 9), valor_compra=valor, valor_venda=valor)
+
+    monkeypatch.setattr(conversoes_router, "buscar_cotacao_atual", taxa_por_moeda)
+
+    resposta = client.post(
+        "/conversoes", json={"moeda_origem": "EUR", "moeda_destino": "USD", "valor": 10}
+    )
+
+    assert resposta.status_code == 201
+    # 10 EUR * 6.00 = 60 BRL; 60 BRL / 5.00 = 12 USD
+    assert resposta.json()["valor_destino"] == pytest.approx(12.0)
+
+
+def test_converter_moeda_invalida(client, monkeypatch):
+    def levantar(moeda, logger):
+        raise CotacaoIndisponivelError("moeda nao encontrada na PTAX")
+
+    monkeypatch.setattr(conversoes_router, "buscar_cotacao_atual", levantar)
+
+    resposta = client.post(
+        "/conversoes", json={"moeda_origem": "zzz", "moeda_destino": "brl", "valor": 10}
+    )
+
+    assert resposta.status_code == 400
+
+
+def test_converter_fonte_fora_do_ar(client, monkeypatch):
+    def falhar(moeda, logger):
+        raise RuntimeError("PTAX fora do ar")
+
+    monkeypatch.setattr(conversoes_router, "buscar_cotacao_atual", falhar)
+
+    resposta = client.post(
+        "/conversoes", json={"moeda_origem": "usd", "moeda_destino": "brl", "valor": 10}
+    )
+
+    assert resposta.status_code == 502
+
+
+def test_listar_historico_conversoes(client, monkeypatch):
+    _mockar_taxa(monkeypatch)
+    client.post("/conversoes", json={"moeda_origem": "usd", "moeda_destino": "brl", "valor": 100})
+    client.post("/conversoes", json={"moeda_origem": "usd", "moeda_destino": "brl", "valor": 50})
+
+    resposta = client.get("/conversoes")
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert len(corpo) == 2
+    assert corpo[0]["valor_origem"] == 50  # mais recente primeiro
+
+
+# -- GET /agendador/proxima-coleta ---------------------------------------------
+
+def test_proxima_coleta_com_agendador_rodando(client, monkeypatch):
+    from datetime import datetime, timezone
+
+    daqui_a_pouco = datetime.now(timezone.utc).replace(microsecond=0)
+    monkeypatch.setattr(agendador_router, "proxima_execucao", lambda: daqui_a_pouco)
+    monkeypatch.setattr(agendador_router, "segundos_ate_proxima_execucao", lambda: 123)
+
+    resposta = client.get("/agendador/proxima-coleta")
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["segundos_ate_proxima_coleta"] == 123
+    assert corpo["proxima_coleta_em"] is not None
+
+
+def test_proxima_coleta_sem_agendador(client, monkeypatch):
+    monkeypatch.setattr(agendador_router, "proxima_execucao", lambda: None)
+    monkeypatch.setattr(agendador_router, "segundos_ate_proxima_execucao", lambda: None)
+
+    resposta = client.get("/agendador/proxima-coleta")
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["segundos_ate_proxima_coleta"] is None
+    assert corpo["proxima_coleta_em"] is None

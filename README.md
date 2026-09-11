@@ -34,7 +34,7 @@ O repositório tem duas partes:
                               ▼
    ┌──────────────────────────────────────────────────────────────┐
    │                      API (FastAPI, src/api/)                  │
-   │  main.py · routers: auth · itens · cotacoes · moedas           │
+   │  main.py · routers: auth · itens · cotacoes · moedas · conversoes │
    │  schemas (Pydantic) · dependencias (get_db, obter_usuario_atual)│
    └──────────┬───────────────────────────────────────┬─────────────┘
               │                                        │
@@ -103,7 +103,8 @@ btime-case-cambio/
 │   │       ├── auth.py          # POST /auth/login
 │   │       ├── itens.py         # /items (cadastro, listagem, coleta...)
 │   │       ├── cotacoes.py      # GET /cotacoes (consulta livre)
-│   │       └── moedas.py        # GET /moedas
+│   │       ├── moedas.py        # GET /moedas
+│   │       └── conversoes.py    # POST/GET /conversoes (conversão + histórico)
 │   ├── auth/
 │   │   └── seguranca.py        # hash de senha (bcrypt) + JWT
 │   ├── agendador/
@@ -189,12 +190,14 @@ python run_frontend.py
 
 Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html` direto como arquivo (`file://`) não funciona — o navegador bloqueia o `fetch` por CORS nesse esquema; por isso existe o `run_frontend.py`. Se o backend rodar em outra porta/host, ajustar `API_BASE_URL` em `frontend/config.js`.
 
-**Telas:**
+**Telas** (menu lateral, com a conta logada — e-mail decodificado do próprio JWT — e "Sair" no rodapé):
 
-- **Login** (`#/login`) — e-mail + senha reais contra `/auth/login`. Sem cadastro na tela (ver [decisões](#decisões-técnicas-e-por-quê)) — é a porta de entrada obrigatória: sem token válido, o roteador manda qualquer outra rota de volta pra cá. O token JWT fica em `localStorage`; qualquer resposta `401` limpa o token e volta pro login automaticamente, e o botão "Sair" na navbar faz o mesmo na hora.
-- **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a última cotação e, se a variação passou do limiar, um selo ▲/▼ de alerta. Botão "+ Novo item" abre um modal de cadastro, com um seletor de moeda populado via `GET /moedas` — sugere o nome do item automaticamente ao escolher a moeda.
-- **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta (com o mesmo selo de alerta ao lado do nome), botão "Coletar agora", e abas Gráfico/Tabela para o histórico. O gráfico é SVG desenhado à mão (sem biblioteca externa): duas séries (compra/venda), crosshair com tooltip no hover, marcador de fim de linha e grade horizontal discreta.
-- **Consulta livre** (`#/consulta`) — seletor de moeda (só as já cadastradas, vindo de `GET /items`) + período, batendo direto no `GET /cotacoes` ao vivo em vez de só reaproveitar o que o agendador já coletou.
+- **Login** (`#/login`) — e-mail + senha reais contra `/auth/login`. Sem cadastro na tela (ver [decisões](#decisões-técnicas-e-por-quê)) — é a porta de entrada obrigatória: sem token válido, o roteador manda qualquer outra rota de volta pra cá. O token JWT fica em `localStorage`; qualquer resposta `401` limpa o token e volta pro login automaticamente, e o botão "Sair" faz o mesmo na hora.
+- **Itens** (`#/items`) — grid dos itens cadastrados, cada card com a última cotação e, se a variação passou do limiar, um selo ▲/▼ de alerta. Botão "+ Novo item" abre um modal de cadastro, com um seletor de moeda populado via `GET /moedas` (qualquer moeda aceita pela PTAX) — sugere o nome do item automaticamente ao escolher a moeda.
+- **Detalhe do item** (`#/items/{id}`) — estatísticas da última coleta (com o mesmo selo de alerta ao lado do nome), botão "Coletar agora", e abas Gráfico/Tabela de **monitoramento em tempo real**: em vez de só reaproveitar o log de coletas do agendador, busca ao vivo no `GET /cotacoes` o mês corrente inteiro (do dia 1 até hoje); nos 3 primeiros dias do mês, estende pra trás até o início do mês anterior, pra nunca mostrar um gráfico praticamente vazio. O gráfico é SVG desenhado à mão (sem biblioteca externa): duas séries (compra/venda), crosshair com tooltip no hover, marcador de fim de linha e grade horizontal discreta.
+- **Consulta livre** (`#/consulta`) — seletor de moeda (só as já cadastradas, vindo de `GET /items`) + período, batendo direto no `GET /cotacoes` ao vivo.
+- **Comparar moedas** (`#/comparar`) — escolhe até 6 moedas quaisquer da PTAX (não só as cadastradas) + período, e compara num único gráfico. Como as escalas são muito diferentes entre si (ex: Iene ~0,03 vs Libra ~6,5), o gráfico normaliza cada série em % de variação desde o primeiro ponto do período, em vez de plotar os valores absolutos; a tabela ao lado traz os valores reais (compra/venda atuais e variação % no período).
+- **Conversão** (`#/conversao`) — converte um valor entre duas moedas quaisquer (ou BRL) pela cotação PTAX mais recente, batendo em `POST /conversoes`. Cada conversão feita é gravada e aparece no histórico da tela (`GET /conversoes`) — é só um cálculo registrado, não uma transação financeira real.
 
 ## Endpoints da API
 
@@ -208,6 +211,8 @@ Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html` direto como
 | POST | `/items/{id}/collect` | Força uma coleta manual imediata | Sim |
 | GET | `/cotacoes?moeda=&data_inicio=&data_fim=` | Consulta livre na PTAX, sem item cadastrado | Sim |
 | GET | `/moedas` | Lista as moedas que a PTAX aceita (código + nome) | Sim |
+| POST | `/conversoes` | Converte um valor entre duas moedas (ou BRL) pela cotação mais recente e grava no histórico | Sim |
+| GET | `/conversoes` | Histórico de conversões do usuário logado | Sim |
 
 ## Decisões técnicas e por quê
 
@@ -221,6 +226,7 @@ Depois, abrir **http://127.0.0.1:5500**. Abrir `frontend/index.html` direto como
 - **Alerta de variação brusca.** Em vez do endpoint de regra configurável que o desafio original sugere como bônus (`POST /items/{id}/alerts`), cada item cadastrado já vem com `variacao_percentual` calculada (compra: coleta mais recente vs. a anterior) em `GET /items`. O frontend acende um selo quando o módulo passa de `config.ALERTA_VARIACAO_PERCENTUAL` (padrão: 2%) — limiar pensado pra filtrar ruído normal do dia a dia sem deixar passar um movimento fora do comum, e em percentual (não R$) porque um valor fixo não faz sentido comparando moedas de escalas tão diferentes (Iene vs. Libra, por exemplo).
 - **Consulta livre (`GET /cotacoes`).** Além do agendador e da coleta manual por item, dá pra consultar qualquer moeda + período direto na PTAX sem precisar de um item já ter sido coletado nesse intervalo — pensado pra uma tela interativa onde a pessoa escolhe moeda e datas. No frontend, o seletor de moeda dessa tela só lista as já cadastradas (a API em si aceita qualquer código).
 - **Mapeamento de erros:** `404` quando o item não existe; `400` quando o payload é inválido ou (só na criação) a moeda não existe na PTAX; `409` quando a moeda já está cadastrada; `502` quando a PTAX está fora do ar ou não responde a tempo (a coleta falhou, não o pedido do usuário); `401` quando falta token válido. Nenhuma exceção do Python chega crua ao cliente — um handler global converte qualquer erro não previsto em `500` com mensagem genérica, registrando o detalhe no log.
+- **Conversão pela taxa média (compra+venda)/2.** `POST /conversoes` não escolhe a ponta de compra ou de venda do banco — usaria uma direção arbitrária num conversor genérico. Moedas estrangeiras sempre passam pelo Real como ponte (`valor_origem_em_reais / taxa_destino`); BRL entra como taxa fixa 1.0, sem chamar a PTAX (que só lista moedas estrangeiras).
 - **Frontend estático, sem build.** HTML/CSS/JS puro em `frontend/`, seguindo o design system btime (tokens `--bt-*` em `styles.css`). Publicação futura no Lovable é só hospedagem — por isso não há passo de build nem framework, e a URL do backend fica num único lugar (`frontend/config.js`).
 - **Gráfico sem biblioteca externa.** O histórico é desenhado como SVG à mão (duas séries, crosshair, tooltip no hover) em vez de importar uma lib de gráficos via CDN — mantém o frontend sem dependência externa nenhuma.
 - **Coletores e domínio do fluxo legado, intocados.** `src/dominio/` normaliza os valores pra string com vírgula e 4 casas (pensado pro CSV abrir certo no Excel brasileiro); o backend guarda `float` puro (o consumidor é JSON/gráfico, não uma planilha) — por isso o backend não reaproveita o modelo `Cotacao`, só o cliente HTTP da PTAX (`ptax_cliente.py`).

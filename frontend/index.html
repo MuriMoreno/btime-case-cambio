@@ -11,16 +11,56 @@
 </head>
 <body class="bt-root">
 
-  <header class="bt-navbar">
-    <a href="#/items" class="bt-navbar__brand">btime <span class="bt-body-sm" style="font-weight:400;color:var(--bt-text-muted)">· Monitor de Cotações</span></a>
-    <nav class="bt-navbar__links" id="navbar-links" aria-label="Navegação principal">
-      <button type="button" class="bt-navlink" data-route="#/items" data-nav>Itens</button>
-      <button type="button" class="bt-navlink" data-route="#/consulta" data-nav>Consulta livre</button>
-      <button type="button" class="bt-navlink" id="btn-logout">Sair</button>
-    </nav>
-  </header>
+  <div class="app-layout">
 
-  <main class="app-shell">
+    <button type="button" class="app-sidebar-toggle" id="btn-toggle-sidebar" aria-label="Abrir menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="app-sidebar-scrim" id="sidebar-scrim"></div>
+
+    <aside class="app-sidebar" id="app-sidebar">
+      <a href="#/dashboard" class="bt-navbar__brand" style="padding:0 var(--bt-space-2);">btime <span class="bt-body-sm" style="font-weight:400;color:var(--bt-text-muted)">· Monitor de Cotações</span></a>
+
+      <nav class="app-sidebar__nav" id="navbar-links" aria-label="Navegação principal">
+        <button type="button" class="bt-navlink app-sidebar__link" data-route="#/dashboard" data-nav>
+          <svg class="app-navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+          Dashboard
+        </button>
+        <button type="button" class="bt-navlink app-sidebar__link" data-route="#/items" data-nav>
+          <svg class="app-navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+          Itens
+        </button>
+        <button type="button" class="bt-navlink app-sidebar__link" data-route="#/consulta" data-nav>
+          <svg class="app-navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Consulta livre
+        </button>
+        <button type="button" class="bt-navlink app-sidebar__link" data-route="#/comparar" data-nav>
+          <svg class="app-navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="20" x2="5" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="19" y1="20" x2="19" y2="14"></line></svg>
+          Comparar moedas
+        </button>
+        <button type="button" class="bt-navlink app-sidebar__link" data-route="#/conversao" data-nav>
+          <svg class="app-navicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+          Conversão
+        </button>
+      </nav>
+
+      <div class="app-sidebar__footer" id="sidebar-footer">
+        <div class="app-sidebar__clock">
+          <span class="bt-label" style="color:var(--bt-text-subtle);">Próxima coleta automática</span>
+          <span class="bt-mono" id="sidebar-proxima-coleta" style="font-size:var(--bt-text-lg);">—</span>
+        </div>
+        <div class="app-sidebar__account">
+          <span class="app-sidebar__account-avatar" aria-hidden="true" id="sidebar-conta-inicial">?</span>
+          <div style="min-width:0;">
+            <div class="bt-label" style="color:var(--bt-text-subtle);">Conectado como</div>
+            <div class="bt-body-sm" id="sidebar-conta-email" style="color:var(--bt-text);font-weight:var(--bt-weight-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+          </div>
+        </div>
+        <button type="button" class="bt-btn bt-btn--secondary bt-btn--sm bt-btn--block" id="btn-logout">Sair</button>
+      </div>
+    </aside>
+
+    <main class="app-shell">
 
     <div id="global-alert" class="app-hidden"></div>
 
@@ -48,6 +88,115 @@
 
           <button type="submit" class="bt-btn bt-btn--primary bt-btn--block" id="btn-login-submit" style="margin-top:var(--bt-space-5);">Entrar</button>
         </form>
+      </div>
+    </section>
+
+    <!-- ============================== VIEW: Dashboard ============================== -->
+    <section id="view-dashboard" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
+      <div>
+        <h1 class="bt-h1">Dashboard</h1>
+        <p class="bt-body">Um resumo rápido do que está acontecendo com as moedas monitoradas e com o mercado em geral.</p>
+      </div>
+
+      <div id="dashboard-alert" class="app-hidden"></div>
+
+      <div class="app-stat-row">
+        <div class="app-stat">
+          <span class="bt-label">Itens monitorados</span>
+          <span class="app-stat__value bt-mono" id="dash-total-itens">—</span>
+        </div>
+        <div class="app-stat">
+          <span class="bt-label">Com alerta de variação hoje</span>
+          <span class="app-stat__value bt-mono" id="dash-itens-alerta">—</span>
+        </div>
+        <div class="app-stat">
+          <span class="bt-label">Conversões feitas</span>
+          <span class="app-stat__value bt-mono" id="dash-total-conversoes">—</span>
+        </div>
+      </div>
+
+      <div class="bt-card" style="gap:var(--bt-space-4);">
+        <div>
+          <h2 class="bt-h3">Maiores altas e baixas — últimos 3 meses</h2>
+          <p class="bt-body-sm">Variação da cotação de compra num recorte de moedas relevantes da PTAX, do início ao fim do período.</p>
+        </div>
+        <div id="dash-ranking-loading" class="app-hidden">
+          <div class="bt-skeleton" style="height:14px;width:100%;margin-bottom:var(--bt-space-3);"></div>
+          <div class="bt-skeleton" style="height:14px;width:100%;margin-bottom:var(--bt-space-3);"></div>
+          <div class="bt-skeleton" style="height:14px;width:100%;"></div>
+        </div>
+        <div id="dash-ranking-vazio" class="bt-empty app-hidden">
+          <span class="bt-body-sm">Não foi possível montar o ranking agora.</span>
+        </div>
+        <div id="dash-ranking-cols" class="app-hidden" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:var(--bt-space-6);">
+          <div>
+            <span class="bt-label" style="color:var(--bt-success);">▲ Maiores altas</span>
+            <div id="dash-ranking-altas" style="display:flex;flex-direction:column;gap:var(--bt-space-2);margin-top:var(--bt-space-3);"></div>
+          </div>
+          <div>
+            <span class="bt-label" style="color:var(--bt-danger);">▼ Maiores baixas</span>
+            <div id="dash-ranking-baixas" style="display:flex;flex-direction:column;gap:var(--bt-space-2);margin-top:var(--bt-space-3);"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:var(--bt-space-6);align-items:start;">
+        <div class="bt-card" style="gap:var(--bt-space-4);">
+          <div>
+            <h2 class="bt-h3">Maior volatilidade — últimos 3 meses</h2>
+            <p class="bt-body-sm">Maior salto de um dia pro outro na cotação de compra, dentro do mesmo recorte de moedas.</p>
+          </div>
+          <div id="dash-volatilidade-loading" class="app-hidden">
+            <div class="bt-skeleton" style="height:14px;width:100%;margin-bottom:var(--bt-space-3);"></div>
+            <div class="bt-skeleton" style="height:14px;width:100%;margin-bottom:var(--bt-space-3);"></div>
+            <div class="bt-skeleton" style="height:14px;width:100%;"></div>
+          </div>
+          <div id="dash-volatilidade-vazio" class="bt-empty app-hidden">
+            <span class="bt-body-sm">Não foi possível calcular a volatilidade agora.</span>
+          </div>
+          <div id="dash-volatilidade-lista" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-2);"></div>
+        </div>
+
+        <div class="bt-card" style="gap:var(--bt-space-4);">
+          <div>
+            <h2 class="bt-h3">Variação média por dia da semana</h2>
+            <p class="bt-body-sm">Média do módulo da variação diária, somando todas as moedas do recorte — indica em que dia o mercado costuma se mexer mais.</p>
+          </div>
+          <div id="dash-diasemana-loading" class="app-hidden">
+            <div class="bt-skeleton" style="height:14px;width:100%;margin-bottom:var(--bt-space-3);"></div>
+            <div class="bt-skeleton" style="height:14px;width:100%;margin-bottom:var(--bt-space-3);"></div>
+            <div class="bt-skeleton" style="height:14px;width:100%;"></div>
+          </div>
+          <div id="dash-diasemana-vazio" class="bt-empty app-hidden">
+            <span class="bt-body-sm">Não foi possível calcular agora.</span>
+          </div>
+          <div id="dash-diasemana-lista" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-2);"></div>
+        </div>
+      </div>
+
+      <div class="bt-card" style="gap:var(--bt-space-4);">
+        <div>
+          <h2 class="bt-h3">Suas conversões — moeda mais convertida</h2>
+          <p class="bt-body-sm">Pares de moeda mais usados nas suas conversões (tela Conversão).</p>
+        </div>
+        <div id="dash-conversoes-vazio" class="bt-empty app-hidden">
+          <span class="bt-body-sm">Nenhuma conversão feita ainda — experimente a tela Conversão.</span>
+        </div>
+        <div id="dash-conversoes-lista" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-2);"></div>
+      </div>
+
+      <div class="bt-card" style="gap:var(--bt-space-4);">
+        <div>
+          <h2 class="bt-h3">Suas moedas monitoradas — mês corrente</h2>
+          <p class="bt-body-sm">Variação percentual de cada item cadastrado desde o início do período de monitoramento.</p>
+        </div>
+        <div id="dash-itens-vazio" class="bt-empty app-hidden">
+          <span class="bt-body-sm">Cadastre um item na tela de Itens para ver a evolução dele aqui.</span>
+        </div>
+        <div id="dash-itens-chart-wrap" class="app-hidden">
+          <div class="app-chart-legend" id="dash-itens-chart-legend"></div>
+          <div id="dash-itens-chart-container" style="position:relative;"></div>
+        </div>
       </div>
     </section>
 
@@ -113,6 +262,9 @@
       </div>
 
       <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--bt-space-2);margin-bottom:var(--bt-space-3);">
+          <p class="bt-body-sm" style="margin:0;">Monitoramento em tempo real — direto da PTAX, período <strong id="monitor-periodo-label">—</strong></p>
+        </div>
         <div class="bt-tabs" role="tablist">
           <button type="button" class="bt-tab" role="tab" aria-selected="true" data-tab="grafico">Gráfico</button>
           <button type="button" class="bt-tab" role="tab" aria-selected="false" data-tab="tabela">Tabela</button>
@@ -126,7 +278,7 @@
             </div>
             <div id="chart-container" style="position:relative;"></div>
             <div id="chart-empty" class="bt-empty app-hidden">
-              <span class="bt-body-sm">Ainda não há histórico suficiente para desenhar o gráfico.</span>
+              <span class="bt-body-sm">Ainda não há cotações nesse período.</span>
             </div>
           </div>
         </div>
@@ -139,7 +291,6 @@
                   <th>Data da cotação</th>
                   <th data-numeric>Compra</th>
                   <th data-numeric>Venda</th>
-                  <th>Coletado em</th>
                 </tr>
               </thead>
               <tbody id="history-table-body"></tbody>
@@ -153,7 +304,7 @@
     <section id="view-consulta" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
       <div>
         <h1 class="bt-h1">Consulta livre</h1>
-        <p class="bt-body">Escolha uma moeda já cadastrada e um período pra consultar direto na PTAX do Banco Central.</p>
+        <p class="bt-body">Escolha qualquer moeda parametrizada na PTAX e um período pra consultar direto no Banco Central.</p>
       </div>
 
       <form id="form-consulta" class="bt-card" novalidate>
@@ -166,12 +317,26 @@
             <span class="bt-field__hint" id="consulta-moeda-hint"></span>
           </div>
           <div class="bt-field">
-            <label class="bt-field__label" data-required for="consulta-inicio">Data início</label>
-            <input class="bt-input" type="date" id="consulta-inicio" name="data_inicio" required>
+            <label class="bt-field__label" data-required for="consulta-inicio-trigger">Data início</label>
+            <div class="bt-datepicker" id="consulta-inicio-wrap">
+              <button type="button" class="bt-input bt-datepicker__trigger" id="consulta-inicio-trigger" aria-haspopup="dialog" aria-expanded="false">
+                <span class="bt-datepicker__value" id="consulta-inicio-display">Selecione</span>
+                <svg class="bt-datepicker__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              </button>
+              <input type="hidden" id="consulta-inicio" name="data_inicio">
+              <div class="bt-datepicker__panel app-hidden" id="consulta-inicio-panel" role="dialog" aria-label="Selecionar data de início"></div>
+            </div>
           </div>
           <div class="bt-field">
-            <label class="bt-field__label" data-required for="consulta-fim">Data fim</label>
-            <input class="bt-input" type="date" id="consulta-fim" name="data_fim" required>
+            <label class="bt-field__label" data-required for="consulta-fim-trigger">Data fim</label>
+            <div class="bt-datepicker" id="consulta-fim-wrap">
+              <button type="button" class="bt-input bt-datepicker__trigger" id="consulta-fim-trigger" aria-haspopup="dialog" aria-expanded="false">
+                <span class="bt-datepicker__value" id="consulta-fim-display">Selecione</span>
+                <svg class="bt-datepicker__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              </button>
+              <input type="hidden" id="consulta-fim" name="data_fim">
+              <div class="bt-datepicker__panel app-hidden" id="consulta-fim-panel" role="dialog" aria-label="Selecionar data de fim"></div>
+            </div>
           </div>
           <button type="submit" class="bt-btn bt-btn--primary" id="btn-consultar">Buscar</button>
         </div>
@@ -202,7 +367,138 @@
       </div>
     </section>
 
-  </main>
+    <!-- ============================== VIEW: Comparar moedas ============================== -->
+    <section id="view-comparar" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
+      <div>
+        <h1 class="bt-h1">Comparar moedas</h1>
+        <p class="bt-body">Escolha até 6 moedas (qualquer uma parametrizada na PTAX) e um período. O gráfico mostra a variação percentual de cada uma desde o início do período, pra comparar moedas de escalas bem diferentes lado a lado.</p>
+      </div>
+
+      <form id="form-comparar" class="bt-card" novalidate>
+        <div style="display:flex;flex-direction:column;gap:var(--bt-space-4);">
+          <div class="bt-field">
+            <label class="bt-field__label">Moedas</label>
+            <input class="bt-input" type="search" id="comparar-filtro" placeholder="Filtrar por código ou nome…" autocomplete="off">
+            <div class="app-checkbox-list" id="comparar-lista-moedas">
+              <span class="bt-body-sm">Carregando moedas…</span>
+            </div>
+            <span class="bt-field__hint" id="comparar-selecionadas-hint">0 de 6 selecionadas</span>
+          </div>
+
+          <div class="app-form-grid">
+            <div class="bt-field">
+              <label class="bt-field__label" data-required for="comparar-inicio-trigger">Data início</label>
+              <div class="bt-datepicker" id="comparar-inicio-wrap">
+                <button type="button" class="bt-input bt-datepicker__trigger" id="comparar-inicio-trigger" aria-haspopup="dialog" aria-expanded="false">
+                  <span class="bt-datepicker__value" id="comparar-inicio-display">Selecione</span>
+                  <svg class="bt-datepicker__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                </button>
+                <input type="hidden" id="comparar-inicio" name="data_inicio">
+                <div class="bt-datepicker__panel app-hidden" id="comparar-inicio-panel" role="dialog" aria-label="Selecionar data de início"></div>
+              </div>
+            </div>
+            <div class="bt-field">
+              <label class="bt-field__label" data-required for="comparar-fim-trigger">Data fim</label>
+              <div class="bt-datepicker" id="comparar-fim-wrap">
+                <button type="button" class="bt-input bt-datepicker__trigger" id="comparar-fim-trigger" aria-haspopup="dialog" aria-expanded="false">
+                  <span class="bt-datepicker__value" id="comparar-fim-display">Selecione</span>
+                  <svg class="bt-datepicker__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                </button>
+                <input type="hidden" id="comparar-fim" name="data_fim">
+                <div class="bt-datepicker__panel app-hidden" id="comparar-fim-panel" role="dialog" aria-label="Selecionar data de fim"></div>
+              </div>
+            </div>
+            <button type="submit" class="bt-btn bt-btn--primary" id="btn-comparar">Comparar</button>
+          </div>
+        </div>
+      </form>
+
+      <div id="comparar-alert" class="app-hidden"></div>
+
+      <div id="comparar-resultado" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-4);">
+        <div class="app-chart-wrap">
+          <div class="app-chart-legend" id="comparar-chart-legend"></div>
+          <div id="comparar-chart-container" style="position:relative;"></div>
+        </div>
+        <div class="bt-table-wrap">
+          <table class="bt-table">
+            <thead>
+              <tr>
+                <th>Moeda</th>
+                <th data-numeric>Compra atual</th>
+                <th data-numeric>Venda atual</th>
+                <th data-numeric>Variação no período</th>
+              </tr>
+            </thead>
+            <tbody id="comparar-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="comparar-empty" class="bt-empty app-hidden">
+        <span class="bt-body-sm">Nenhum boletim encontrado para essas moedas/período.</span>
+      </div>
+    </section>
+
+    <!-- ============================== VIEW: Conversão de moedas ============================== -->
+    <section id="view-conversao" class="app-hidden" style="display:flex;flex-direction:column;gap:var(--bt-space-6);">
+      <div>
+        <h1 class="bt-h1">Conversão de moedas</h1>
+        <p class="bt-body">Converte um valor entre duas moedas pela cotação PTAX mais recente (taxa média entre compra e venda). Cada conversão feita fica salva no seu histórico abaixo.</p>
+      </div>
+
+      <form id="form-conversao" class="bt-card" novalidate>
+        <div class="app-form-grid">
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="conversao-valor">Valor</label>
+            <input class="bt-input" type="number" id="conversao-valor" name="valor" min="0.01" step="0.01" required>
+          </div>
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="conversao-origem">De</label>
+            <select class="bt-select" id="conversao-origem" name="moeda_origem" required>
+              <option value="" disabled selected>Selecione</option>
+            </select>
+          </div>
+          <div class="bt-field">
+            <label class="bt-field__label" data-required for="conversao-destino">Para</label>
+            <select class="bt-select" id="conversao-destino" name="moeda_destino" required>
+              <option value="" disabled selected>Selecione</option>
+            </select>
+          </div>
+          <button type="submit" class="bt-btn bt-btn--primary" id="btn-converter">Converter</button>
+        </div>
+      </form>
+
+      <div id="conversao-alert" class="app-hidden"></div>
+
+      <div id="conversao-resultado" class="bt-card app-hidden" style="align-items:center;text-align:center;gap:var(--bt-space-2);">
+        <span class="bt-label">Resultado</span>
+        <span class="app-item-card__value" id="conversao-resultado-valor" style="font-size:var(--bt-text-3xl);">—</span>
+        <span class="bt-body-sm" id="conversao-resultado-taxa"></span>
+      </div>
+
+      <div>
+        <h2 class="bt-h3">Histórico de conversões</h2>
+        <div class="bt-table-wrap" style="margin-top:var(--bt-space-3);">
+          <table class="bt-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>De</th>
+                <th>Para</th>
+                <th data-numeric>Valor de origem</th>
+                <th data-numeric>Valor convertido</th>
+                <th data-numeric>Taxa aplicada</th>
+              </tr>
+            </thead>
+            <tbody id="conversao-historico-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    </main>
+  </div>
 
   <!-- ============================== MODAL: Cadastrar item ============================== -->
   <div id="modal-create" class="bt-modal app-hidden">

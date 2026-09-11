@@ -142,3 +142,14 @@ JWT_EXPIRACAO_HORAS = 24
 # anterior, o item ganha um selo visual de alta/queda no frontend.
 # ---------------------------------------------------------------------------
 ALERTA_VARIACAO_PERCENTUAL = 2.0
+
+# ---------------------------------------------------------------------------
+# Dashboard: ranking de maiores altas/baixas num período.
+# Recorte de moedas relevantes e líquidas (não a lista inteira da PTAX,
+# ~200 códigos) para o ranking responder rápido e não misturar moeda
+# exótica/pouco negociada com pouquíssimo histórico no meio do resultado.
+# ---------------------------------------------------------------------------
+MOEDAS_DASHBOARD_RANKING = [
+    "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "CNY",
+    "ARS", "CLP", "MXN", "NOK", "SEK", "DKK", "NZD",
+]

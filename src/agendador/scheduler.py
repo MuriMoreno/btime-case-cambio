@@ -8,6 +8,8 @@ por isso abre sua própria sessão de banco em vez de usar a dependência
 get_db das rotas.
 """
 
+from datetime import datetime, timezone
+
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from src.infra import config
@@ -79,3 +81,17 @@ def proxima_execucao():
     """
     job = _scheduler.get_job("coleta_periodica")
     return job.next_run_time if job else None
+
+
+def segundos_ate_proxima_execucao():
+    """
+    Quantos segundos faltam para a próxima coleta automática, ou None se o
+    agendador não estiver rodando. Usado tanto no aviso de moeda duplicada
+    quanto no relógio de contagem regressiva do frontend.
+    """
+    proxima = proxima_execucao()
+    if proxima is None:
+        return None
+
+    agora = datetime.now(proxima.tzinfo or timezone.utc)
+    return max(0, int((proxima - agora).total_seconds()))
